@@ -300,6 +300,7 @@ function TableCard({
 export default function NineCardGameLobby() {
   const navigate = useNavigate();
   const { user, isAdmin } =  useAuth();
+  console.log("isAdmin:", isAdmin, "uid:", user?.uid);
   const [tables, setTables] = useState<NineCardTable[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
