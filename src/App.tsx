@@ -89,6 +89,7 @@ export default function App() {
               <Route path="/game-room/:roomId" element={<GameRoom />} />
               <Route path="/games/poker/:tableId" element={<PokerGamePage />} />
               <Route path="/games/ludo/:tableId" element={<LudoGame />} />
+              <Route path="/games/nine-card/:tableId" element={<NineCardGame />} />
             </Route>
 
             {/* Default redirects */}
