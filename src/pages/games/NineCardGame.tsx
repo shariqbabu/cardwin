@@ -13,7 +13,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
   subscribeTable,
-  payBoot,
   seeCards,
   callBet,
   packHand,
@@ -506,8 +505,14 @@ export default function NineCardGame() {
   // ─── Render ─────────────────────────────────────
   return (
     <div
-      className="h-screen w-screen flex flex-col bg-[#060d09] text-white overflow-hidden"
-      style={{ fontFamily: "'Georgia', serif" }}
+      className="flex flex-col bg-[#060d09] text-white"
+      style={{
+        fontFamily: "'Georgia', serif",
+        position: "fixed",
+        top: 0, left: 0, right: 0, bottom: 0,
+        height: "100dvh",
+        overflow: "hidden",
+      }}
     >
       <style>{`
         @keyframes dealCard {
@@ -575,13 +580,6 @@ export default function NineCardGame() {
               {table.currentTurn === myUid ? "Your Turn" : `${table.players[table.currentTurn]?.displayName}'s turn`}
             </p>
           )}
-          {/* Countdown */}
-          {countdown !== null && (
-            <div className="flex items-center gap-1.5 bg-black/40 rounded-full px-3 py-1">
-              <div className="w-3 h-3 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
-              <p className="text-yellow-400 text-xs font-bold">Starting in {countdown}s</p>
-            </div>
-          )}
         </div>
 
         {/* MY SEAT (Bottom) */}
@@ -599,26 +597,42 @@ export default function NineCardGame() {
       <div className="shrink-0 bg-black/60 backdrop-blur border-t border-emerald-900/30 px-4 py-3"
         style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
 
-        {/* WAITING */}
+        {/* WAITING — sirf status dikhao, koi button nahi */}
         {isWaiting && (
-          <div className="text-center space-y-2">
+          <div className="text-center space-y-2 py-1">
             <p className="text-gray-400 text-xs">
               {Object.keys(table.players).length}/{table.maxPlayers} players joined
             </p>
-            {myPlayer && !myPlayer.hasPaidBoot ? (
-              <button
-                onClick={() => act(() => payBoot(tableId!, myUid))}
-                disabled={actionLoading}
-                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition disabled:opacity-40"
-              >
-                {actionLoading ? "Processing…" : `Pay Boot ₹${table.bootAmount} & Ready`}
-              </button>
-            ) : myPlayer?.hasPaidBoot ? (
-              <div className="flex items-center justify-center gap-2 py-1">
-                <div className="w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-emerald-400 text-sm">Waiting for others…</p>
+            {countdown !== null ? (
+              /* Enough players — countdown chal raha hai */
+              <div className="flex flex-col items-center gap-2">
+                {/* Big countdown ring */}
+                <div className="relative w-14 h-14">
+                  <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
+                    <circle cx="28" cy="28" r="24" fill="none" stroke="#1a3d26" strokeWidth="4" />
+                    <circle
+                      cx="28" cy="28" r="24" fill="none"
+                      stroke="#f59e0b" strokeWidth="4"
+                      strokeDasharray={`${2 * Math.PI * 24}`}
+                      strokeDashoffset={`${2 * Math.PI * 24 * (1 - countdown / 15)}`}
+                      strokeLinecap="round"
+                      style={{ transition: "stroke-dashoffset 1s linear" }}
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-yellow-400 font-black text-lg">
+                    {countdown}
+                  </span>
+                </div>
+                <p className="text-yellow-400 text-xs font-bold">Game shuru ho rahi hai…</p>
+                <p className="text-gray-600 text-[10px]">Boot ₹{table.bootAmount} automatically katega</p>
               </div>
-            ) : null}
+            ) : (
+              /* Players ka wait */
+              <div className="flex items-center justify-center gap-2 py-1">
+                <div className="w-3 h-3 border-2 border-gray-600 border-t-gray-400 rounded-full animate-spin" />
+                <p className="text-gray-400 text-sm">Doosre player ka intezaar…</p>
+              </div>
+            )}
           </div>
         )}
 
