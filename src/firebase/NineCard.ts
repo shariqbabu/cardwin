@@ -680,7 +680,7 @@ export async function packHand(
       pot,
       reason: `${table.players[uid].displayName} packed`,
       isDraw: false,
-      timestamp: serverTimestamp() as Timestamp,
+     timestamp: Timestamp.now(),
     };
 
     // ── WRITES ──
