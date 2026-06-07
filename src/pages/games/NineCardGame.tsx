@@ -572,13 +572,39 @@ export default function NineCardGame() {
           )}
         </div>
 
-        {/* CENTER POT */}
-        <div className="z-10 flex flex-col items-center gap-1">
+        {/* CENTER POT + COUNTDOWN */}
+        <div className="z-10 flex flex-col items-center gap-2">
           <PotDisplay pot={table.pot} callAmount={table.currentCallAmount} />
+
+          {/* Turn indicator — sirf playing state mein */}
           {table.status === "playing" && table.currentTurn && (
             <p className="text-[10px] text-yellow-400 animate-pulse font-medium">
               {table.currentTurn === myUid ? "Your Turn" : `${table.players[table.currentTurn]?.displayName}'s turn`}
             </p>
+          )}
+
+          {/* ✅ Countdown ring — table ke CENTER mein, waiting state mein */}
+          {isWaiting && countdown !== null && (
+            <div className="flex flex-col items-center gap-1.5 mt-1">
+              <div className="relative w-16 h-16">
+                <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                  <circle cx="32" cy="32" r="27" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="5" />
+                  <circle
+                    cx="32" cy="32" r="27" fill="none"
+                    stroke="#f59e0b" strokeWidth="5"
+                    strokeDasharray={`${2 * Math.PI * 27}`}
+                    strokeDashoffset={`${2 * Math.PI * 27 * (1 - countdown / 15)}`}
+                    strokeLinecap="round"
+                    style={{ transition: "stroke-dashoffset 1s linear" }}
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-yellow-300 font-black text-xl">
+                  {countdown}
+                </span>
+              </div>
+              <p className="text-yellow-400 text-[11px] font-bold">Game shuru ho rahi hai…</p>
+              <p className="text-gray-600 text-[9px]">Boot ₹{table.bootAmount} katega</p>
+            </div>
           )}
         </div>
 
