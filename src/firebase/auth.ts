@@ -62,6 +62,7 @@ export const signUp = async (
       isAdmin: false,
       isOnline: true,
       isBanned: false,
+      role: 'user',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
