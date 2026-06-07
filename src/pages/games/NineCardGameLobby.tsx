@@ -307,8 +307,6 @@ export default function NineCardGameLobby() {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<"all" | "open" | "playing">("all");
 
-  const isAdmin = userProfile?.isAdmin === true;
-
   useEffect(() => {
     const unsub = subscribeLobby((all) => {
       setTables(all);
