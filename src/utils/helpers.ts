@@ -403,13 +403,15 @@ export const deductFromWallet = (
 // =====================================================
 
 export const calculateTotalBalance = (
-  wallet: {
-    winningBalance: number;
-    depositBalance: number;
-    bonusBalance: number;
-    referralBalance: number;
-  }
+  wallet?: {
+    winningBalance?: number;
+    depositBalance?: number;
+    bonusBalance?: number;
+    referralBalance?: number;
+  } | null
 ): number => {
+
+  if (!wallet) return 0;
 
   return (
     (wallet.winningBalance || 0) +
@@ -418,7 +420,6 @@ export const calculateTotalBalance = (
     (wallet.referralBalance || 0)
   );
 };
-
 // =====================================================
 // WITHDRAWABLE BALANCE
 // ONLY WINNING BALANCE
