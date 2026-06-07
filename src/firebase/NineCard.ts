@@ -725,7 +725,7 @@ export async function leaveTable(
     });
   });
 }
-** Reset table for next round */
+/** Reset table for next round */
 export async function resetTable(tableId: string): Promise<void> {
   const snap = await getDoc(tableRef(tableId));
   if (!snap.exists()) return;
