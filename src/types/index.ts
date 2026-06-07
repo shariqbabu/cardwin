@@ -11,6 +11,7 @@ export interface User {
   isAdmin: boolean;
   isOnline: boolean;
   isBanned: boolean;
+  role: string;
   createdAt: Timestamp;
   updatedAt: Timestamp; 
 }
