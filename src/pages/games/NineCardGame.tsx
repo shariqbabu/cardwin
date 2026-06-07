@@ -476,7 +476,7 @@ export default function NineCardGame() {
     if (!tableId) return;
     hasLeft.current = true;
     try { await leaveTable(tableId, myUid); } catch {}
-    navigate("/nine-card");
+    navigate("/games/ninecard");
   }
 
   async function handlePlayAgain() {
@@ -499,7 +499,7 @@ export default function NineCardGame() {
         <div className="text-center">
           <p className="text-red-400 mb-3">Table not found</p>
           <button
-            onClick={() => navigate("/nine-card")}
+            onClick={() => navigate("/games/ninecard")}
             className="text-emerald-400 text-sm hover:underline"
           >
             ← Back to Lobby
