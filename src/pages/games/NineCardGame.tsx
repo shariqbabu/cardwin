@@ -90,7 +90,6 @@ function CardBack({ size = "md", animate = false }: CardBackProps) {
         border: "2px solid #2d6a4f",
       }}
     >
-      {/* Pattern */}
       <div
         className="absolute inset-1 rounded-lg"
         style={{
@@ -117,7 +116,7 @@ interface SeatProps {
   isMe: boolean;
   isCurrentTurn: boolean;
   myCards: Card[];
-  showCards: boolean;   // only for "me" or showdown
+  showCards: boolean;
   position: "bottom" | "top" | "left" | "right";
   pot?: number;
 }
@@ -153,35 +152,23 @@ function Seat({ player, isMe, isCurrentTurn, myCards, showCards, position }: Sea
 
   return (
     <div className={`flex ${isVertical ? "flex-col" : "flex-row"} items-center gap-2`}>
-      {/* Cards */}
       <div className="flex gap-1.5">
         {player.cardIds.length > 0 ? (
           player.cardIds.map((id, i) => (
             showCards ? (
-              <CardFace
-                key={id}
-                card={getCardById(id)}
-                size="md"
-                animate
-              />
+              <CardFace key={id} card={getCardById(id)} size="md" animate />
             ) : (
               <CardBack key={i} size="md" animate />
             )
           ))
         ) : (
-          // Empty card slots
           Array.from({ length: 2 }).map((_, i) => (
-            <div
-              key={i}
-              className="w-14 h-20 rounded-xl border-2 border-dashed border-gray-700/40"
-            />
+            <div key={i} className="w-14 h-20 rounded-xl border-2 border-dashed border-gray-700/40" />
           ))
         )}
       </div>
 
-      {/* Info */}
       <div className={`flex flex-col items-center gap-1 ${!isVertical ? "ml-2" : ""}`}>
-        {/* Avatar */}
         <div className={`
           relative w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold
           ${isMe ? "bg-emerald-700 ring-2 ring-emerald-400" : "bg-gray-700 ring-2 ring-gray-600"}
@@ -192,7 +179,6 @@ function Seat({ player, isMe, isCurrentTurn, myCards, showCards, position }: Sea
           ) : (
             player.displayName.charAt(0).toUpperCase()
           )}
-          {/* Turn indicator */}
           {isCurrentTurn && (
             <span className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse" />
           )}
@@ -240,21 +226,11 @@ interface ActionBarProps {
   canShow: boolean;
   loading: boolean;
 }
-function ActionBar({
-  player,
-  callAmount,
-  onCall,
-  onPack,
-  onSee,
-  onShow,
-  canShow,
-  loading,
-}: ActionBarProps) {
+function ActionBar({ player, callAmount, onCall, onPack, onSee, onShow, canShow, loading }: ActionBarProps) {
   const isBlind = !player.seenCards;
 
   return (
     <div className="flex flex-wrap justify-center gap-2">
-      {/* See Cards */}
       {isBlind && (
         <button
           onClick={onSee}
@@ -264,8 +240,6 @@ function ActionBar({
           See Cards
         </button>
       )}
-
-      {/* Call */}
       <button
         onClick={onCall}
         disabled={loading}
@@ -273,8 +247,6 @@ function ActionBar({
       >
         Call ₹{callAmount}
       </button>
-
-      {/* Show */}
       {canShow && !isBlind && (
         <button
           onClick={onShow}
@@ -284,8 +256,6 @@ function ActionBar({
           Show
         </button>
       )}
-
-      {/* Pack */}
       <button
         onClick={onPack}
         disabled={loading}
@@ -305,51 +275,34 @@ interface WinnerOverlayProps {
   onLeave: () => void;
   isAdmin: boolean;
 }
-function WinnerOverlay({
-  table,
-  myUid,
-  onPlayAgain,
-  onLeave,
-  isAdmin,
-}: WinnerOverlayProps) {
+function WinnerOverlay({ table, myUid, onPlayAgain, onLeave, isAdmin }: WinnerOverlayProps) {
   const iWon = table.winnerId === myUid;
   const isDraw = table.isDraw;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center px-4">
       <div className="w-full max-w-sm bg-[#0c1810] border border-emerald-800/50 rounded-2xl overflow-hidden shadow-2xl">
-        {/* Result Banner */}
-        <div
-          className={`py-6 text-center ${
-            isDraw
-              ? "bg-gradient-to-b from-gray-700 to-gray-800"
-              : iWon
-              ? "bg-gradient-to-b from-yellow-600/80 to-yellow-800/60"
-              : "bg-gradient-to-b from-red-800/60 to-red-900/40"
-          }`}
-        >
-          <div className="text-5xl mb-2">
-            {isDraw ? "🤝" : iWon ? "🏆" : "💔"}
-          </div>
+        <div className={`py-6 text-center ${
+          isDraw ? "bg-gradient-to-b from-gray-700 to-gray-800"
+          : iWon ? "bg-gradient-to-b from-yellow-600/80 to-yellow-800/60"
+          : "bg-gradient-to-b from-red-800/60 to-red-900/40"
+        }`}>
+          <div className="text-5xl mb-2">{isDraw ? "🤝" : iWon ? "🏆" : "💔"}</div>
           <h2 className="text-2xl font-black text-white">
             {isDraw ? "It's a Draw!" : iWon ? "You Won!" : "You Lost"}
           </h2>
           {!isDraw && table.winnerId && (
             <p className="text-sm text-gray-300 mt-1">
-              {iWon
-                ? `+₹${table.pot}`
-                : `${table.players[table.winnerId]?.displayName} wins`}
+              {iWon ? `+₹${table.pot}` : `${table.players[table.winnerId]?.displayName} wins`}
             </p>
           )}
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Reason */}
           {table.winnerReason && (
             <p className="text-center text-xs text-gray-400">{table.winnerReason}</p>
           )}
 
-          {/* Show all cards in showdown */}
           {table.status === "finished" && (
             <div className="space-y-3">
               {table.playerOrder.map((uid) => {
@@ -367,16 +320,13 @@ function WinnerOverlay({
                         <CardFace key={id} card={getCardById(id)} size="sm" />
                       ))}
                     </div>
-                    {table.winnerId === uid && (
-                      <span className="text-yellow-400 text-xs">👑</span>
-                    )}
+                    {table.winnerId === uid && <span className="text-yellow-400 text-xs">👑</span>}
                   </div>
                 );
               })}
             </div>
           )}
 
-          {/* Buttons */}
           <div className="flex gap-2 pt-2">
             <button
               onClick={onLeave}
@@ -404,15 +354,19 @@ export default function NineCardGame() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
+
+  // ✅ SAARE HOOKS YAHAN — kisi bhi return se PEHLE
   const [table, setTable] = useState<NineCardTable | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
+  const [countdown, setCountdown] = useState<number | null>(null);   // ✅ hook upar
   const hasLeft = useRef(false);
+  const autoStartRef = useRef<ReturnType<typeof setTimeout> | null>(null); // ✅ hook upar
 
   const myUid = user?.uid || "";
 
-  // Subscribe
+  // Subscribe to table
   useEffect(() => {
     if (!tableId) return;
     const unsub = subscribeTable(tableId, (t) => {
@@ -432,92 +386,11 @@ export default function NineCardGame() {
     };
   }, [tableId, myUid]);
 
-  const myPlayer: NineCardPlayer | null = useMemo(
-    () => (table && myUid ? table.players[myUid] || null : null),
-    [table, myUid]
-  );
-
-  const opponents: NineCardPlayer[] = useMemo(() => {
-    if (!table) return [];
-    return table.playerOrder
-      .filter((uid) => uid !== myUid)
-      .map((uid) => table.players[uid])
-      .filter(Boolean);
-  }, [table, myUid]);
-
-  const isMyTurn = table?.currentTurn === myUid;
-  const isShowdown = table?.status === "finished";
-  const isWaiting = table?.status === "waiting" || table?.status === "booting";
-  const myCards: Card[] = useMemo(
-    () =>
-      myPlayer?.seenCards && myPlayer.cardIds.length > 0
-        ? myPlayer.cardIds.map(getCardById)
-        : [],
-    [myPlayer]
-  );
-
-  // Can show: both have called at least once (currentCallAmount matched)
-  const canShow = isMyTurn && !isWaiting && (myPlayer?.seenCards || false);
-
-  async function act(fn: () => Promise<void>) {
-    if (!tableId) return;
-    setActionLoading(true);
-    setError("");
-    try {
-      await fn();
-    } catch (e: any) {
-      setError(e.message || "Action failed");
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
-  async function handleLeave() {
-    if (!tableId) return;
-    hasLeft.current = true;
-    try { await leaveTable(tableId, myUid); } catch {}
-    navigate("/games/ninecard");
-  }
-
-  async function handlePlayAgain() {
-    if (!tableId) return;
-    act(() => resetTable(tableId));
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#060d09] flex items-center justify-center gap-3">
-        <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-        <p className="text-gray-400">Loading table…</p>
-      </div>
-    );
-  }
-
-  if (!table) {
-    return (
-      <div className="min-h-screen bg-[#060d09] flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-400 mb-3">Table not found</p>
-          <button
-            onClick={() => navigate("/games/ninecard")}
-            className="text-emerald-400 text-sm hover:underline"
-          >
-            ← Back to Lobby
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ─── Auto-start: 15 sec jab minPlayers join ho jaye ───
-  const autoStartRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [countdown, setCountdown] = useState<number | null>(null);
-
+  // ✅ Auto-start countdown effect — hooks ke saath upar, early returns se PEHLE
   useEffect(() => {
     if (!table || !tableId) return;
     const playerCount = Object.keys(table.players).length;
 
-    // Sirf waiting state mein aur enough players hon
     if (table.status === "waiting" && playerCount >= table.minPlayers) {
       setCountdown(15);
       let seconds = 15;
@@ -551,7 +424,84 @@ export default function NineCardGame() {
         autoStartRef.current = null;
       }
     }
-  }, [table?.status, JSON.stringify(Object.keys(table?.players || {}))]);
+  // playerOrder key string pe depend karo, object reference pe nahi
+  }, [table?.status, table?.playerOrder?.join(","), tableId]);
+
+  const myPlayer: NineCardPlayer | null = useMemo(
+    () => (table && myUid ? table.players[myUid] || null : null),
+    [table, myUid]
+  );
+
+  const opponents: NineCardPlayer[] = useMemo(() => {
+    if (!table) return [];
+    return table.playerOrder
+      .filter((uid) => uid !== myUid)
+      .map((uid) => table.players[uid])
+      .filter(Boolean);
+  }, [table, myUid]);
+
+  const isMyTurn = table?.currentTurn === myUid;
+  const isShowdown = table?.status === "finished";
+  const isWaiting = table?.status === "waiting" || table?.status === "booting";
+
+  const myCards: Card[] = useMemo(
+    () =>
+      myPlayer?.seenCards && myPlayer.cardIds.length > 0
+        ? myPlayer.cardIds.map(getCardById)
+        : [],
+    [myPlayer]
+  );
+
+  const canShow = isMyTurn && !isWaiting && (myPlayer?.seenCards || false);
+
+  // ─── Action helpers ───────────────────────────
+  async function act(fn: () => Promise<void>) {
+    if (!tableId) return;
+    setActionLoading(true);
+    setError("");
+    try {
+      await fn();
+    } catch (e: any) {
+      setError(e.message || "Action failed");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function handleLeave() {
+    if (!tableId) return;
+    hasLeft.current = true;
+    try { await leaveTable(tableId, myUid); } catch {}
+    navigate("/games/ninecard");
+  }
+
+  async function handlePlayAgain() {
+    if (!tableId) return;
+    act(() => resetTable(tableId));
+  }
+
+  // ✅ Early returns SIRF YAHAN — saare hooks ke BAAD
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#060d09] flex items-center justify-center gap-3">
+        <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+        <p className="text-gray-400">Loading table…</p>
+      </div>
+    );
+  }
+
+  if (!table) {
+    return (
+      <div className="min-h-screen bg-[#060d09] flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-400 mb-3">Table not found</p>
+          <button onClick={() => navigate("/games/ninecard")} className="text-emerald-400 text-sm hover:underline">
+            ← Back to Lobby
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ─── Render ─────────────────────────────────────
   return (
@@ -564,13 +514,9 @@ export default function NineCardGame() {
           from { opacity: 0; transform: translateY(-20px) scale(0.85) rotate(-4deg); }
           to   { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
         }
-        @keyframes countdown {
-          from { stroke-dashoffset: 0; }
-          to { stroke-dashoffset: 100; }
-        }
       `}</style>
 
-      {/* ── TOP BAR ── */}
+      {/* TOP BAR */}
       <div className="shrink-0 flex items-center justify-between px-3 py-2 bg-black/50 border-b border-emerald-900/40">
         <div className="flex items-center gap-2">
           <button onClick={handleLeave} className="text-gray-400 hover:text-white text-lg leading-none px-1">←</button>
@@ -588,7 +534,7 @@ export default function NineCardGame() {
         </span>
       </div>
 
-      {/* ── ERROR ── */}
+      {/* ERROR */}
       {error && (
         <div className="shrink-0 mx-3 mt-1.5 bg-red-900/20 border border-red-800/50 rounded-lg px-3 py-1.5 flex items-center justify-between">
           <p className="text-red-400 text-xs">{error}</p>
@@ -596,10 +542,9 @@ export default function NineCardGame() {
         </div>
       )}
 
-      {/* ══ POKER TABLE ══ */}
+      {/* POKER TABLE */}
       <div className="flex-1 relative flex flex-col items-center justify-between px-4 py-3 min-h-0">
-
-        {/* GREEN FELT — rounded rectangle */}
+        {/* Green felt */}
         <div
           className="absolute inset-x-3 inset-y-2 rounded-[2.5rem] pointer-events-none"
           style={{
@@ -630,7 +575,7 @@ export default function NineCardGame() {
               {table.currentTurn === myUid ? "Your Turn" : `${table.players[table.currentTurn]?.displayName}'s turn`}
             </p>
           )}
-          {/* Countdown timer */}
+          {/* Countdown */}
           {countdown !== null && (
             <div className="flex items-center gap-1.5 bg-black/40 rounded-full px-3 py-1">
               <div className="w-3 h-3 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
@@ -650,8 +595,9 @@ export default function NineCardGame() {
         </div>
       </div>
 
-      {/* ══ ACTION ZONE ══ */}
-      <div className="shrink-0 bg-black/60 backdrop-blur border-t border-emerald-900/30 px-4 py-3">
+      {/* ACTION ZONE */}
+      <div className="shrink-0 bg-black/60 backdrop-blur border-t border-emerald-900/30 px-4 py-3"
+        style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
 
         {/* WAITING */}
         {isWaiting && (
