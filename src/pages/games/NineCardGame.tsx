@@ -400,7 +400,7 @@ function WinnerOverlay({
 export default function NineCardGame() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
-  const { user, isAdmin } =  useAuth();
+  const { user, isAdmin } = useAuth();
   const [table, setTable] = useState<NineCardTable | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -508,72 +508,59 @@ export default function NineCardGame() {
   // ─── Render ─────────────────────────────────────
   return (
     <div
-      className="min-h-screen flex flex-col bg-[#060d09] text-white overflow-hidden"
+      className="h-screen w-screen flex flex-col bg-[#060d09] text-white overflow-hidden"
       style={{ fontFamily: "'Georgia', serif" }}
     >
-      {/* CSS keyframe for card deal */}
       <style>{`
         @keyframes dealCard {
-          from { opacity: 0; transform: translateY(-30px) scale(0.8) rotate(-5deg); }
-          to   { opacity: 1; transform: translateY(0)    scale(1)   rotate(0deg);  }
+          from { opacity: 0; transform: translateY(-20px) scale(0.85) rotate(-4deg); }
+          to   { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
         }
       `}</style>
 
-      {/* Top Bar */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-black/40 border-b border-emerald-900/30">
+      {/* ── TOP BAR ── */}
+      <div className="shrink-0 flex items-center justify-between px-3 py-2 bg-black/50 border-b border-emerald-900/40">
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleLeave}
-            className="text-gray-500 hover:text-white text-sm transition"
-          >
-            ←
-          </button>
+          <button onClick={handleLeave} className="text-gray-400 hover:text-white text-lg leading-none px-1">←</button>
           <div>
             <p className="text-xs font-bold text-white leading-none">{table.name}</p>
-            <p className="text-[10px] text-gray-500">9 Card Table · Round {table.round || 1}</p>
+            <p className="text-[10px] text-gray-500 leading-none mt-0.5">Round {table.round || 1} · Boot ₹{table.bootAmount}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {table.status !== "waiting" && (
-            <span className="text-xs text-gray-400">Boot ₹{table.bootAmount}</span>
-          )}
-          <span
-            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-              table.status === "playing"
-                ? "bg-blue-700/60 text-blue-300"
-                : table.status === "waiting"
-                ? "bg-emerald-900/60 text-emerald-400"
-                : "bg-gray-700/60 text-gray-300"
-            }`}
-          >
-            {table.status.toUpperCase()}
-          </span>
-        </div>
+        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+          table.status === "playing" ? "bg-blue-800/70 text-blue-300" :
+          table.status === "waiting" ? "bg-emerald-900/70 text-emerald-400" :
+          "bg-gray-700/70 text-gray-300"
+        }`}>
+          {table.status.toUpperCase()}
+        </span>
       </div>
 
-      {/* Error Banner */}
+      {/* ── ERROR ── */}
       {error && (
-        <div className="mx-4 mt-2 bg-red-900/20 border border-red-800/50 rounded-xl px-3 py-2 flex items-center justify-between">
+        <div className="shrink-0 mx-3 mt-1.5 bg-red-900/20 border border-red-800/50 rounded-lg px-3 py-1.5 flex items-center justify-between">
           <p className="text-red-400 text-xs">{error}</p>
-          <button onClick={() => setError("")} className="text-red-600 ml-2 text-sm">×</button>
+          <button onClick={() => setError("")} className="text-red-600 ml-2">×</button>
         </div>
       )}
 
-      {/* ═══ POKER TABLE ═══ */}
-      <div className="flex-1 flex flex-col items-center justify-between py-4 px-2 gap-4 relative">
+      {/* ══════════════════════════════════
+          POKER TABLE AREA — flex-1, no scroll
+      ══════════════════════════════════ */}
+      <div className="flex-1 relative flex flex-col items-center justify-between px-4 py-3 min-h-0">
 
-        {/* TABLE FELT */}
+        {/* ── GREEN FELT TABLE (rounded rectangle) ── */}
         <div
-          className="absolute inset-6 top-[60px] bottom-[140px] sm:inset-8 sm:top-[70px] sm:bottom-[150px] rounded-[50%] pointer-events-none"
+          className="absolute inset-x-4 inset-y-2 rounded-[2.5rem] pointer-events-none"
           style={{
-            background: "radial-gradient(ellipse at center, #1a4d2e 0%, #0e3320 60%, #09200f 100%)",
-            border: "6px solid #2d6a4f",
-            boxShadow: "0 0 0 3px #1a3d26, inset 0 4px 30px rgba(0,0,0,0.5)",
+            background: "radial-gradient(ellipse at center, #1e5c35 0%, #0f3a20 65%, #081a0e 100%)",
+            border: "5px solid #2d6a4f",
+            boxShadow: "0 0 0 2px #1a3d26, inset 0 2px 40px rgba(0,0,0,0.6), 0 8px 32px rgba(0,0,0,0.8)",
           }}
         />
 
-        {/* ── Opponents (Top) ── */}
-        <div className="w-full flex justify-center gap-6 z-10 pt-2">
+        {/* ── OPPONENT SEAT (Top) ── */}
+        <div className="w-full flex justify-center z-10 pt-1">
           {opponents.length > 0 ? (
             opponents.map((opp) => (
               <Seat
@@ -587,33 +574,22 @@ export default function NineCardGame() {
               />
             ))
           ) : (
-            <Seat
-              player={null}
-              isMe={false}
-              isCurrentTurn={false}
-              myCards={[]}
-              showCards={false}
-              position="top"
-            />
+            <Seat player={null} isMe={false} isCurrentTurn={false} myCards={[]} showCards={false} position="top" />
           )}
         </div>
 
-        {/* ── Center: Pot ── */}
-        <div className="z-10 flex flex-col items-center gap-2">
+        {/* ── CENTER POT ── */}
+        <div className="z-10 flex flex-col items-center gap-1">
           <PotDisplay pot={table.pot} callAmount={table.currentCallAmount} />
-
-          {/* Turn indicator */}
           {table.status === "playing" && table.currentTurn && (
-            <p className="text-[10px] text-yellow-500 animate-pulse">
-              {table.currentTurn === myUid
-                ? "⭐ Your Turn"
-                : `${table.players[table.currentTurn]?.displayName}'s turn`}
+            <p className="text-[10px] text-yellow-400 animate-pulse font-medium">
+              {table.currentTurn === myUid ? "⭐ Your Turn" : `${table.players[table.currentTurn]?.displayName}'s turn`}
             </p>
           )}
         </div>
 
-        {/* ── My Seat (Bottom) ── */}
-        <div className="z-10 flex flex-col items-center gap-3 pb-1">
+        {/* ── MY SEAT (Bottom) ── */}
+        <div className="z-10 flex flex-col items-center pb-1">
           {myPlayer ? (
             <Seat
               player={myPlayer}
@@ -624,39 +600,42 @@ export default function NineCardGame() {
               position="bottom"
             />
           ) : (
-            <p className="text-gray-500 text-sm">You are not in this table</p>
+            <p className="text-gray-500 text-sm">Spectating</p>
           )}
         </div>
       </div>
 
-      {/* ═══ ACTION ZONE ═══ */}
-      <div className="bg-black/50 backdrop-blur border-t border-emerald-900/30 px-4 py-4 min-h-[120px]">
-        {/* WAITING FOR PLAYERS */}
+      {/* ══════════════════════════════════
+          ACTION ZONE — fixed bottom
+      ══════════════════════════════════ */}
+      <div className="shrink-0 bg-black/60 backdrop-blur border-t border-emerald-900/30 px-4 py-3">
+
+        {/* WAITING */}
         {isWaiting && (
-          <div className="text-center space-y-3">
-            <p className="text-gray-400 text-sm">
+          <div className="text-center space-y-2">
+            <p className="text-gray-400 text-xs">
               {Object.keys(table.players).length}/{table.maxPlayers} players joined
             </p>
             {myPlayer && !myPlayer.hasPaidBoot ? (
               <button
                 onClick={() => act(() => payBoot(tableId!, myUid))}
                 disabled={actionLoading}
-                className="px-8 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition disabled:opacity-40"
+                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition disabled:opacity-40"
               >
                 {actionLoading ? "Processing…" : `Pay Boot ₹${table.bootAmount} & Ready`}
               </button>
             ) : myPlayer?.hasPaidBoot ? (
-              <div className="flex items-center justify-center gap-2">
+              <div className="flex items-center justify-center gap-2 py-1">
                 <div className="w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-emerald-400 text-sm">Waiting for others to pay…</p>
+                <p className="text-emerald-400 text-sm">Waiting for others…</p>
               </div>
             ) : null}
           </div>
         )}
 
-        {/* PLAYING — MY TURN */}
+        {/* MY TURN */}
         {table.status === "playing" && isMyTurn && myPlayer && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <p className="text-center text-[10px] text-yellow-500 uppercase tracking-widest">Your Turn</p>
             <ActionBar
               player={myPlayer}
@@ -670,30 +649,21 @@ export default function NineCardGame() {
           </div>
         )}
 
-        {/* PLAYING — OPPONENT'S TURN */}
+        {/* OPPONENT TURN */}
         {table.status === "playing" && !isMyTurn && (
-          <div className="text-center flex items-center justify-center gap-2 h-12">
+          <div className="flex items-center justify-center gap-2 py-2">
             <div className="w-4 h-4 border-2 border-gray-600 border-t-gray-300 rounded-full animate-spin" />
             <p className="text-gray-400 text-sm">
-              Waiting for {
-                table.currentTurn
-                  ? table.players[table.currentTurn]?.displayName || "opponent"
-                  : "opponent"
-              }…
+              Waiting for {table.currentTurn ? table.players[table.currentTurn]?.displayName || "opponent" : "opponent"}…
             </p>
           </div>
         )}
 
-        {/* NOT IN TABLE */}
+        {/* SPECTATOR */}
         {!myPlayer && table.status !== "waiting" && (
-          <div className="text-center">
-            <p className="text-gray-500 text-sm mb-2">You are spectating this game</p>
-            <button
-              onClick={handleLeave}
-              className="text-emerald-400 text-sm hover:underline"
-            >
-              ← Back to Lobby
-            </button>
+          <div className="text-center py-1">
+            <p className="text-gray-500 text-xs mb-1">Spectating</p>
+            <button onClick={handleLeave} className="text-emerald-400 text-sm hover:underline">← Lobby</button>
           </div>
         )}
       </div>
