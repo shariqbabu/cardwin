@@ -75,7 +75,7 @@ export default function App() {
                 <Route path="/games/color-prediction" element={<ColorPrediction />} />
                 <Route path="/games/DragonTiger" element={<DragonTigerPage />} />
                 <Route path="/games/ludo" element={<LudoLobby />} />
-                <Route path="/games/nine-card" element={<NineCardGame />} />
+                <Route path="/games/ninecard" element={<NineCardGame />} />
                 <Route path="/games/nine-card/:tableId" element={<NineCardGameLobby />} />
 
                 
