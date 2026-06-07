@@ -47,6 +47,7 @@ const gameItems = [
   { path: '/games/DragonTiger', icon: Gamepad2, label: 'Dragon Tiger', color: 'text-green-400' },
   { path: '/games/andar-bahar', icon: Diamond, label: 'Andar Bahar', color: 'text-green-400' },
   { path: '/games/ludo', icon: Dice6, label: 'Ludo', color: 'text-green-400' },
+  { path: '/games/nine-card', icon: Dice6, label: 'Ludo', color: 'text-green-400' },
 ];
 
 export const Sidebar: React.FC = () => {
