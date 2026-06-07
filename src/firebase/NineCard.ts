@@ -791,7 +791,7 @@ export async function showHands(
       pot,
       reason: winnerReason,
       isDraw,
-      timestamp: serverTimestamp() as Timestamp,
+      timestamp: Timestamp.now(),
     };
 
     // ── WRITES ──
@@ -894,7 +894,7 @@ export async function leaveTable(
           pot: table.pot,
           reason: `${table.players[uid].displayName} left the game`,
           isDraw: false,
-          timestamp: serverTimestamp() as Timestamp,
+          timestamp: Timestamp.now(),
         };
 
         const updatedPlayers = { ...table.players };
@@ -1123,7 +1123,7 @@ export async function autoCallBet(
         pot: table.pot,
         reason: `${player.displayName} auto-packed (insufficient balance)`,
         isDraw: false,
-        timestamp: serverTimestamp() as Timestamp,
+        timestamp: Timestamp.now(),
       };
 
       const updatedPlayers = { ...table.players };
