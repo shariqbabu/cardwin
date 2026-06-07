@@ -1075,7 +1075,7 @@ export async function autoCallBet(
   uid: string
 ): Promise<void> {
   await runTransaction(db, async (tx) => {
-    // ── READS ──
+    // ── READS ───────────────────────────────────
     const snap = await tx.get(tableRef(tableId));
     if (!snap.exists()) return;
     const table = snap.data() as NineCardTable;
@@ -1087,25 +1087,94 @@ export async function autoCallBet(
     if (!player || player.status === "packed") return;
 
     const callAmt = table.currentCallAmount;
-    const walletRef = doc(db, "wallets", uid);
-    const walletSnap = await tx.get(walletRef);
-    if (!walletSnap.exists()) return;
-    const wallet = walletSnap.data() as Wallet;
+    const payoutAmount = Number(table.pot || 0);
 
-    const txLogRef = doc(collection(db, "transactions"));
-
-    // ── COMPUTE ──
     const activePlayers = table.playerOrder.filter(
       (id) => table.players[id]?.status !== "packed"
     );
     const myIdx = activePlayers.indexOf(uid);
     const nextIdx = (myIdx + 1) % activePlayers.length;
     const nextUid = activePlayers[nextIdx];
-    const now = serverTimestamp() as Timestamp;
 
+    const walletRef = doc(db, "wallets", uid);
+    const walletSnap = await tx.get(walletRef);
+    if (!walletSnap.exists()) return;
+    const wallet = walletSnap.data() as Wallet;
+
+    // ✅ Important: agar raise pending hai, timeout pe auto-pack
+    const hasPendingRaiseAgainstPlayer =
+      !!table.lastRaiseBy &&
+      table.lastRaiseBy !== uid &&
+      table.lastRaiseAmount > 0;
+
+    // ───────────────── AUTO PACK BRANCH ─────────────────
+    if (hasPendingRaiseAgainstPlayer) {
+      const winnerUid = nextUid;
+
+      const winnerWalletRef = doc(db, "wallets", winnerUid);
+      const winnerWalletSnap = await tx.get(winnerWalletRef);
+      if (!winnerWalletSnap.exists()) return;
+      const winnerWallet = winnerWalletSnap.data() as Wallet;
+
+      const winTxRef = doc(collection(db, "transactions"));
+      const addition = computeWalletAddition(winnerWallet, payoutAmount);
+
+      const historyEntry: RoundHistory = {
+        round: table.round,
+        winnerId: winnerUid,
+        winnerName: table.players[winnerUid].displayName,
+        pot: payoutAmount,
+        reason: `${player.displayName} timed out after raise`,
+        isDraw: false,
+        timestamp: Timestamp.now(),
+      };
+
+      const updatedPlayers = { ...table.players };
+      updatedPlayers[uid] = {
+        ...player,
+        status: "packed" as PlayerStatus,
+        isMyTurn: false,
+        turnStartedAt: null,
+        autoCallAt: null,
+      };
+
+      // WRITES
+      if (payoutAmount > 0) {
+        tx.update(winnerWalletRef, {
+          winningBalance: addition.newWinning,
+          updatedAt: serverTimestamp(),
+        });
+
+        tx.set(winTxRef, {
+          uid: winnerUid,
+          type: "GAME_WIN",
+          amount: payoutAmount, // ✅ sirf pot
+          previousBalance: addition.previousBalance,
+          currentBalance: addition.currentBalance,
+          status: "COMPLETED",
+          description: `9 Card win — Opponent timed out after raise`,
+          tableId,
+          createdAt: serverTimestamp(),
+        });
+      }
+
+      tx.update(tableRef(tableId), {
+        players: updatedPlayers,
+        winnerId: winnerUid,
+        winnerReason: "Opponent timed out after raise",
+        isDraw: false,
+        status: "finished",
+        history: [...table.history, historyEntry],
+        lastRaiseBy: null,
+        lastRaiseAmount: 0,
+        updatedAt: serverTimestamp(),
+      });
+
+      return;
+    }
+
+    // ───────────────── INSUFFICIENT BALANCE = AUTO PACK ─────────────────
     const usable = calculateUsableBalance(wallet);
-
-    // Balance nahi hai — auto pack
     if (usable < callAmt) {
       const winnerUid = nextUid;
       const winnerWalletRef = doc(db, "wallets", winnerUid);
@@ -1114,13 +1183,13 @@ export async function autoCallBet(
       const winnerWallet = winnerWalletSnap.data() as Wallet;
 
       const winTxRef = doc(collection(db, "transactions"));
-      const addition = computeWalletAddition(winnerWallet, table.pot);
+      const addition = computeWalletAddition(winnerWallet, payoutAmount);
 
       const historyEntry: RoundHistory = {
         round: table.round,
         winnerId: winnerUid,
         winnerName: table.players[winnerUid].displayName,
-        pot: table.pot,
+        pot: payoutAmount,
         reason: `${player.displayName} auto-packed (insufficient balance)`,
         isDraw: false,
         timestamp: Timestamp.now(),
@@ -1135,22 +1204,25 @@ export async function autoCallBet(
         autoCallAt: null,
       };
 
-      // ── WRITES ──
-      tx.update(winnerWalletRef, {
-        winningBalance: addition.newWinning,
-        updatedAt: serverTimestamp(),
-      });
-      tx.set(winTxRef, {
-        uid: winnerUid,
-        type: "GAME_WIN",
-        amount: table.pot,
-        previousBalance: addition.previousBalance,
-        currentBalance: addition.currentBalance,
-        status: "COMPLETED",
-        description: `9 Card win — Opponent timed out`,
-        tableId,
-        createdAt: serverTimestamp(),
-      });
+      if (payoutAmount > 0) {
+        tx.update(winnerWalletRef, {
+          winningBalance: addition.newWinning,
+          updatedAt: serverTimestamp(),
+        });
+
+        tx.set(winTxRef, {
+          uid: winnerUid,
+          type: "GAME_WIN",
+          amount: payoutAmount, // ✅ sirf pot
+          previousBalance: addition.previousBalance,
+          currentBalance: addition.currentBalance,
+          status: "COMPLETED",
+          description: `9 Card win — Opponent timed out`,
+          tableId,
+          createdAt: serverTimestamp(),
+        });
+      }
+
       tx.update(tableRef(tableId), {
         players: updatedPlayers,
         winnerId: winnerUid,
@@ -1158,13 +1230,18 @@ export async function autoCallBet(
         isDraw: false,
         status: "finished",
         history: [...table.history, historyEntry],
+        lastRaiseBy: null,
+        lastRaiseAmount: 0,
         updatedAt: serverTimestamp(),
       });
+
       return;
     }
 
-    // Auto call
+    // ───────────────── NORMAL AUTO CALL ─────────────────
+    const txLogRef = doc(collection(db, "transactions"));
     const deduction = computeWalletDeduction(wallet, callAmt);
+    const now = serverTimestamp() as Timestamp;
 
     const updatedPlayers = { ...table.players };
     updatedPlayers[uid] = {
@@ -1182,7 +1259,6 @@ export async function autoCallBet(
       autoCallAt: now,
     };
 
-    // ── WRITES ──
     tx.update(walletRef, {
       depositBalance: deduction.newDeposit,
       winningBalance: deduction.newWinning,
@@ -1207,6 +1283,8 @@ export async function autoCallBet(
       players: updatedPlayers,
       pot: table.pot + callAmt,
       currentTurn: nextUid,
+      lastRaiseBy: null,   // ✅ raise cleared after matched
+      lastRaiseAmount: 0,
       updatedAt: serverTimestamp(),
     });
   });
