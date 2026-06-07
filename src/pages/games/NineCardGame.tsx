@@ -10,7 +10,7 @@ import React, {
   useMemo,
 } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useAuthContext } from "../context/AuthContext";
+import { useAuthContext } from "../../context/AuthContext";
 import {
   subscribeTable,
   payBoot,
@@ -24,7 +24,7 @@ import {
   type NineCardTable,
   type NineCardPlayer,
   type Card,
-} from "../firebase/NineCard";
+} from "../../firebase/NineCard";
 
 // ─── Card Visual ─────────────────────────────────
 const RED_SUITS = new Set(["♥", "♦"]);
