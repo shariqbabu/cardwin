@@ -1,5 +1,5 @@
 // ============================================================
-// NineCard.ts — Complete Rewrite with All Fixes
+// NineCard.ts — Fixed with proper wallet.ts integration
 // ============================================================
 
 import {
@@ -18,6 +18,8 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { db } from "./config";
+import { calculateUsableBalance, calculateTotalBalance } from "../utils/helpers";
+import type { Wallet } from "../types";
 
 // ─────────────────────────────────────────────
 // TYPES
@@ -50,7 +52,6 @@ export interface NineCardPlayer {
   seenCards: boolean;
   connected: boolean;
   joinedAt: Timestamp | null;
-  // ✅ NEW: Per-player turn timer
   turnStartedAt: Timestamp | null;
   autoCallAt: Timestamp | null;
 }
@@ -84,7 +85,6 @@ export interface NineCardTable {
   history: RoundHistory[];
   minPlayers: number;
   maxPlayers: number;
-  // ✅ NEW: Raise tracking
   lastRaiseBy: string | null;
   lastRaiseAmount: number;
   createdAt: Timestamp | null;
@@ -99,6 +99,84 @@ export interface RoundHistory {
   reason: string;
   isDraw: boolean;
   timestamp: Timestamp | null;
+}
+
+// ─────────────────────────────────────────────
+// WALLET HELPERS (internal)
+// Yeh functions transaction ke ANDAR use honge
+// ─────────────────────────────────────────────
+
+/**
+ * Wallet se amount deduct karo — same logic as deductFunds in wallet.ts
+ * Deposit → Winning → Referral → Bonus (10%) order mein
+ * Transaction ke ANDAR use karo (tx pass karo)
+ */
+function computeWalletDeduction(wallet: Wallet, amount: number): {
+  newDeposit: number;
+  newWinning: number;
+  newReferral: number;
+  newBonus: number;
+  previousBalance: number;
+  currentBalance: number;
+} {
+  const usable = calculateUsableBalance(wallet);
+  if (usable < amount) throw new Error("Insufficient balance");
+
+  let remaining = amount;
+  let newDeposit = wallet.depositBalance;
+  let newWinning = wallet.winningBalance;
+  let newReferral = wallet.referralBalance;
+  let newBonus = wallet.bonusBalance;
+
+  // 1. Deposit pehle
+  const fromDeposit = Math.min(newDeposit, remaining);
+  newDeposit -= fromDeposit;
+  remaining -= fromDeposit;
+
+  // 2. Winning
+  if (remaining > 0) {
+    const fromWinning = Math.min(newWinning, remaining);
+    newWinning -= fromWinning;
+    remaining -= fromWinning;
+  }
+
+  // 3. Referral
+  if (remaining > 0) {
+    const fromReferral = Math.min(newReferral, remaining);
+    newReferral -= fromReferral;
+    remaining -= fromReferral;
+  }
+
+  // 4. Bonus max 10%
+  if (remaining > 0) {
+    const maxBonus = wallet.bonusBalance * 0.1;
+    const fromBonus = Math.min(maxBonus, remaining);
+    newBonus -= fromBonus;
+    remaining -= fromBonus;
+  }
+
+  if (remaining > 0) throw new Error("Insufficient usable balance");
+
+  const previousBalance = calculateTotalBalance(wallet);
+  const currentBalance = previousBalance - amount;
+
+  return { newDeposit, newWinning, newReferral, newBonus, previousBalance, currentBalance };
+}
+
+/**
+ * Winning mein add karo (game jeetne pe)
+ */
+function computeWalletAddition(wallet: Wallet, amount: number): {
+  newWinning: number;
+  previousBalance: number;
+  currentBalance: number;
+} {
+  const previousBalance = calculateTotalBalance(wallet);
+  return {
+    newWinning: wallet.winningBalance + amount,
+    previousBalance,
+    currentBalance: previousBalance + amount,
+  };
 }
 
 // ─────────────────────────────────────────────
@@ -194,7 +272,7 @@ export function compareHands(
 // ─────────────────────────────────────────────
 
 const TABLES_COL = "nineCardTables";
-const AUTO_CALL_SECONDS = 15;
+export const AUTO_CALL_SECONDS = 15;
 
 export function tableRef(tableId: string): DocumentReference {
   return doc(db, TABLES_COL, tableId);
@@ -258,19 +336,31 @@ export async function adminCreateTable(
   return ref.id;
 }
 
-export async function adminToggleTable(tableId: string, disabled: boolean): Promise<void> {
+export async function adminToggleTable(
+  tableId: string,
+  disabled: boolean
+): Promise<void> {
   await updateDoc(tableRef(tableId), {
     status: disabled ? "disabled" : "waiting",
     updatedAt: serverTimestamp(),
   });
 }
 
-export async function adminToggleLock(tableId: string, locked: boolean): Promise<void> {
-  await updateDoc(tableRef(tableId), { locked, updatedAt: serverTimestamp() });
+export async function adminToggleLock(
+  tableId: string,
+  locked: boolean
+): Promise<void> {
+  await updateDoc(tableRef(tableId), {
+    locked,
+    updatedAt: serverTimestamp(),
+  });
 }
 
 export async function adminDeleteTable(tableId: string): Promise<void> {
-  await updateDoc(tableRef(tableId), { status: "disabled", updatedAt: serverTimestamp() });
+  await updateDoc(tableRef(tableId), {
+    status: "disabled",
+    updatedAt: serverTimestamp(),
+  });
 }
 
 // ─────────────────────────────────────────────
@@ -284,7 +374,7 @@ export async function joinTable(
   photoURL?: string
 ): Promise<void> {
   await runTransaction(db, async (tx) => {
-    // ── READ FIRST ──
+    // ── READS ──
     const snap = await tx.get(tableRef(tableId));
     if (!snap.exists()) throw new Error("Table not found");
     const table = snap.data() as NineCardTable;
@@ -293,7 +383,8 @@ export async function joinTable(
     if (table.locked) throw new Error("Table is locked");
     if (table.status === "disabled") throw new Error("Table is disabled");
     if (table.status === "playing") throw new Error("Game already in progress");
-    if (Object.keys(table.players).length >= table.maxPlayers) throw new Error("Table is full");
+    if (Object.keys(table.players).length >= table.maxPlayers)
+      throw new Error("Table is full");
     if (table.players[uid]) throw new Error("Already joined");
 
     // ── COMPUTE ──
@@ -316,7 +407,8 @@ export async function joinTable(
 
     const updatedPlayers = { ...table.players, [uid]: player };
     const updatedOrder = [...table.playerOrder, uid];
-    const willBeFull = Object.keys(updatedPlayers).length >= table.maxPlayers;
+    const willBeFull =
+      Object.keys(updatedPlayers).length >= table.maxPlayers;
 
     // ── WRITE ──
     tx.update(tableRef(tableId), {
@@ -328,9 +420,12 @@ export async function joinTable(
   });
 }
 
-export async function seeCards(tableId: string, uid: string): Promise<void> {
+export async function seeCards(
+  tableId: string,
+  uid: string
+): Promise<void> {
   await runTransaction(db, async (tx) => {
-    // ── READ FIRST ──
+    // ── READS ──
     const snap = await tx.get(tableRef(tableId));
     if (!snap.exists()) throw new Error("Table not found");
     const table = snap.data() as NineCardTable;
@@ -343,29 +438,30 @@ export async function seeCards(tableId: string, uid: string): Promise<void> {
 
     // ── COMPUTE ──
     const now = serverTimestamp() as Timestamp;
-    const updatedPlayers = {
-      ...table.players,
-      [uid]: {
-        ...player,
-        seenCards: true,
-        status: "seen" as PlayerStatus,
-        // Timer continues, player still needs to call/raise/pack
-        turnStartedAt: now,
-        autoCallAt: now,
-      },
-    };
 
     // ── WRITE ──
     tx.update(tableRef(tableId), {
-      players: updatedPlayers,
+      players: {
+        ...table.players,
+        [uid]: {
+          ...player,
+          seenCards: true,
+          status: "seen" as PlayerStatus,
+          turnStartedAt: now,
+          autoCallAt: now,
+        },
+      },
       updatedAt: serverTimestamp(),
     });
   });
 }
 
-export async function callBet(tableId: string, uid: string): Promise<void> {
+export async function callBet(
+  tableId: string,
+  uid: string
+): Promise<void> {
   await runTransaction(db, async (tx) => {
-    // ── READ FIRST ──
+    // ── READS (ALL READS PEHLE) ──
     const snap = await tx.get(tableRef(tableId));
     if (!snap.exists()) throw new Error("Table not found");
     const table = snap.data() as NineCardTable;
@@ -375,21 +471,30 @@ export async function callBet(tableId: string, uid: string): Promise<void> {
     if (!player) throw new Error("Player not found");
 
     const callAmt = table.currentCallAmount;
+
+    // Wallet read
     const walletRef = doc(db, "wallets", uid);
     const walletSnap = await tx.get(walletRef);
     if (!walletSnap.exists()) throw new Error("Wallet not found");
-    const balance = walletSnap.data().balance as number;
-    if (balance < callAmt) throw new Error("Insufficient balance");
+    const wallet = walletSnap.data() as Wallet;
+
+    // Transaction log ref
+    const txLogRef = doc(collection(db, "transactions"));
 
     // ── COMPUTE ──
-    const order = table.playerOrder.filter(
+    // Wallet deduction (deposit → winning → referral → bonus order)
+    const deduction = computeWalletDeduction(wallet, callAmt);
+
+    // Next turn
+    const activePlayers = table.playerOrder.filter(
       (id) => table.players[id]?.status !== "packed"
     );
-    const myIdx = order.indexOf(uid);
-    const nextIdx = (myIdx + 1) % order.length;
-    const nextUid = order[nextIdx];
+    const myIdx = activePlayers.indexOf(uid);
+    const nextIdx = (myIdx + 1) % activePlayers.length;
+    const nextUid = activePlayers[nextIdx];
 
     const now = serverTimestamp() as Timestamp;
+
     const updatedPlayers = { ...table.players };
     updatedPlayers[uid] = {
       ...player,
@@ -406,29 +511,46 @@ export async function callBet(tableId: string, uid: string): Promise<void> {
       autoCallAt: now,
     };
 
-    // ── WRITE ──
+    // ── WRITES ──
+    // 1. Wallet update
+    tx.update(walletRef, {
+      depositBalance: deduction.newDeposit,
+      winningBalance: deduction.newWinning,
+      referralBalance: deduction.newReferral,
+      bonusBalance: deduction.newBonus,
+      updatedAt: serverTimestamp(),
+    });
+
+    // 2. Transaction log
+    tx.set(txLogRef, {
+      uid,
+      type: "GAME_BET",
+      amount: -callAmt,
+      previousBalance: deduction.previousBalance,
+      currentBalance: deduction.currentBalance,
+      status: "COMPLETED",
+      description: `9 Card bet — Call ₹${callAmt}`,
+      tableId,
+      createdAt: serverTimestamp(),
+    });
+
+    // 3. Table update
     tx.update(tableRef(tableId), {
       players: updatedPlayers,
       pot: table.pot + callAmt,
       currentTurn: nextUid,
       updatedAt: serverTimestamp(),
     });
-
-    tx.update(walletRef, {
-      balance: balance - callAmt,
-      updatedAt: serverTimestamp(),
-    });
   });
 }
 
-// ✅ NEW: Raise bet
 export async function raiseBet(
   tableId: string,
   uid: string,
   raiseAmount: number
 ): Promise<void> {
   await runTransaction(db, async (tx) => {
-    // ── READ FIRST ──
+    // ── READS ──
     const snap = await tx.get(tableRef(tableId));
     if (!snap.exists()) throw new Error("Table not found");
     const table = snap.data() as NineCardTable;
@@ -437,28 +559,33 @@ export async function raiseBet(
     const player = table.players[uid];
     if (!player) throw new Error("Player not found");
 
-    // Seen player raises double, blind raises single
+    // Seen player = 2x minimum, blind = 1x
     const minRaise = player.seenCards
       ? table.currentCallAmount * 2
       : table.currentCallAmount;
     if (raiseAmount < minRaise)
       throw new Error(`Minimum raise is ₹${minRaise}`);
 
+    // Wallet read
     const walletRef = doc(db, "wallets", uid);
     const walletSnap = await tx.get(walletRef);
     if (!walletSnap.exists()) throw new Error("Wallet not found");
-    const balance = walletSnap.data().balance as number;
-    if (balance < raiseAmount) throw new Error("Insufficient balance");
+    const wallet = walletSnap.data() as Wallet;
+
+    const txLogRef = doc(collection(db, "transactions"));
 
     // ── COMPUTE ──
-    const order = table.playerOrder.filter(
+    const deduction = computeWalletDeduction(wallet, raiseAmount);
+
+    const activePlayers = table.playerOrder.filter(
       (id) => table.players[id]?.status !== "packed"
     );
-    const myIdx = order.indexOf(uid);
-    const nextIdx = (myIdx + 1) % order.length;
-    const nextUid = order[nextIdx];
+    const myIdx = activePlayers.indexOf(uid);
+    const nextIdx = (myIdx + 1) % activePlayers.length;
+    const nextUid = activePlayers[nextIdx];
 
     const now = serverTimestamp() as Timestamp;
+
     const updatedPlayers = { ...table.players };
     updatedPlayers[uid] = {
       ...player,
@@ -475,27 +602,45 @@ export async function raiseBet(
       autoCallAt: now,
     };
 
-    // ── WRITE ──
+    // ── WRITES ──
+    tx.update(walletRef, {
+      depositBalance: deduction.newDeposit,
+      winningBalance: deduction.newWinning,
+      referralBalance: deduction.newReferral,
+      bonusBalance: deduction.newBonus,
+      updatedAt: serverTimestamp(),
+    });
+
+    tx.set(txLogRef, {
+      uid,
+      type: "GAME_BET",
+      amount: -raiseAmount,
+      previousBalance: deduction.previousBalance,
+      currentBalance: deduction.currentBalance,
+      status: "COMPLETED",
+      description: `9 Card bet — Raise ₹${raiseAmount}`,
+      tableId,
+      createdAt: serverTimestamp(),
+    });
+
     tx.update(tableRef(tableId), {
       players: updatedPlayers,
       pot: table.pot + raiseAmount,
-      currentCallAmount: raiseAmount, // Opponent must match this raise
+      currentCallAmount: raiseAmount,
       currentTurn: nextUid,
       lastRaiseBy: uid,
       lastRaiseAmount: raiseAmount,
       updatedAt: serverTimestamp(),
     });
-
-    tx.update(walletRef, {
-      balance: balance - raiseAmount,
-      updatedAt: serverTimestamp(),
-    });
   });
 }
 
-export async function packHand(tableId: string, uid: string): Promise<void> {
+export async function packHand(
+  tableId: string,
+  uid: string
+): Promise<void> {
   await runTransaction(db, async (tx) => {
-    // ── READ FIRST ──
+    // ── READS ──
     const snap = await tx.get(tableRef(tableId));
     if (!snap.exists()) throw new Error("Table not found");
     const table = snap.data() as NineCardTable;
@@ -508,16 +653,21 @@ export async function packHand(tableId: string, uid: string): Promise<void> {
     const winnerPlayer = table.players[winnerUid];
     const pot = table.pot;
 
-    const walletRef = doc(db, "wallets", winnerUid);
-    const walletSnap = await tx.get(walletRef);
-    if (!walletSnap.exists()) throw new Error("Wallet not found");
-    const winnerBalance = walletSnap.data().balance as number;
+    // Winner wallet read
+    const winnerWalletRef = doc(db, "wallets", winnerUid);
+    const winnerWalletSnap = await tx.get(winnerWalletRef);
+    if (!winnerWalletSnap.exists()) throw new Error("Winner wallet not found");
+    const winnerWallet = winnerWalletSnap.data() as Wallet;
+
+    const txLogRef = doc(collection(db, "transactions"));
 
     // ── COMPUTE ──
+    const addition = computeWalletAddition(winnerWallet, pot);
+
     const updatedPlayers = { ...table.players };
     updatedPlayers[uid] = {
       ...updatedPlayers[uid],
-      status: "packed",
+      status: "packed" as PlayerStatus,
       isMyTurn: false,
       turnStartedAt: null,
       autoCallAt: null,
@@ -533,31 +683,45 @@ export async function packHand(tableId: string, uid: string): Promise<void> {
       timestamp: serverTimestamp() as Timestamp,
     };
 
-    // ── WRITE ──
+    // ── WRITES ──
+    // 1. Winner wallet — winningBalance mein add
+    tx.update(winnerWalletRef, {
+      winningBalance: addition.newWinning,
+      updatedAt: serverTimestamp(),
+    });
+
+    // 2. Transaction log
+    tx.set(txLogRef, {
+      uid: winnerUid,
+      type: "GAME_WIN",
+      amount: pot,
+      previousBalance: addition.previousBalance,
+      currentBalance: addition.currentBalance,
+      status: "COMPLETED",
+      description: `9 Card win — Opponent packed`,
+      tableId,
+      createdAt: serverTimestamp(),
+    });
+
+    // 3. Table update
     tx.update(tableRef(tableId), {
       players: updatedPlayers,
       winnerId: winnerUid,
-      winnerReason: `Opponent packed`,
+      winnerReason: "Opponent packed",
       isDraw: false,
       status: "finished",
       history: [...table.history, historyEntry],
       updatedAt: serverTimestamp(),
     });
-
-    tx.update(walletRef, {
-      balance: winnerBalance + pot,
-      updatedAt: serverTimestamp(),
-    });
   });
 }
 
-/**
- * ✅ FIX: showHands — reads sab pehle, phir writes
- * Both players cards visible after show
- */
-export async function showHands(tableId: string, uid: string): Promise<void> {
+export async function showHands(
+  tableId: string,
+  uid: string
+): Promise<void> {
   await runTransaction(db, async (tx) => {
-    // ── READ FIRST ──
+    // ── READS (ALL PEHLE) ──
     const snap = await tx.get(tableRef(tableId));
     if (!snap.exists()) throw new Error("Table not found");
     const table = snap.data() as NineCardTable;
@@ -565,7 +729,7 @@ export async function showHands(tableId: string, uid: string): Promise<void> {
     if (table.currentTurn !== uid) throw new Error("Not your turn");
     const player = table.players[uid];
     if (!player) throw new Error("Player not found");
-    if (!player.seenCards) throw new Error("See cards before showing");
+    if (!player.seenCards) throw new Error("See cards pehle dekho");
 
     const order = table.playerOrder;
     const myIdx = order.indexOf(uid);
@@ -573,15 +737,29 @@ export async function showHands(tableId: string, uid: string): Promise<void> {
 
     const myCards = table.players[uid].cardIds;
     const oppCards = table.players[oppUid].cardIds;
-
     const pot = table.pot;
 
-    // Read all wallets needed BEFORE any write
-    const isDraw = compareHands(myCards, oppCards) === "draw";
+    // Read ALL wallets pehle
+    const walletRefs: Record<string, ReturnType<typeof doc>> = {};
+    const wallets: Record<string, Wallet> = {};
+    for (const pUid of order) {
+      walletRefs[pUid] = doc(db, "wallets", pUid);
+      const wSnap = await tx.get(walletRefs[pUid]);
+      if (!wSnap.exists()) throw new Error(`Wallet not found: ${pUid}`);
+      wallets[pUid] = wSnap.data() as Wallet;
+    }
+
+    // Tx log refs
+    const txLogRefs: Record<string, ReturnType<typeof doc>> = {};
+    for (const pUid of order) {
+      txLogRefs[pUid] = doc(collection(db, "transactions"));
+    }
+
+    // ── COMPUTE ──
     const result = compareHands(myCards, oppCards);
     let winnerId: string | null = null;
     let winnerReason = "";
-    let isDrawResult = false;
+    let isDraw = false;
 
     if (result === "a") {
       winnerId = uid;
@@ -590,36 +768,21 @@ export async function showHands(tableId: string, uid: string): Promise<void> {
       winnerId = oppUid;
       winnerReason = "Higher hand value";
     } else {
-      isDrawResult = true;
+      isDraw = true;
       winnerReason = "Draw — pot split";
     }
 
-    // Read wallets for all players who need payout
-    const walletReads: Record<string, { ref: ReturnType<typeof doc>; balance: number }> = {};
-    for (const pUid of order) {
-      const wRef = doc(db, "wallets", pUid);
-      const wSnap = await tx.get(wRef);
-      if (!wSnap.exists()) throw new Error(`Wallet not found for ${pUid}`);
-      walletReads[pUid] = { ref: wRef, balance: wSnap.data().balance as number };
-    }
-
-    // ── COMPUTE ──
-    // ✅ FIX: Both players marked as "show" so cards are visible
+    // Both players show status
     const updatedPlayers = { ...table.players };
-    updatedPlayers[uid] = {
-      ...updatedPlayers[uid],
-      status: "show" as PlayerStatus,
-      isMyTurn: false,
-      turnStartedAt: null,
-      autoCallAt: null,
-    };
-    updatedPlayers[oppUid] = {
-      ...updatedPlayers[oppUid],
-      status: "show" as PlayerStatus,
-      isMyTurn: false,
-      turnStartedAt: null,
-      autoCallAt: null,
-    };
+    for (const pUid of order) {
+      updatedPlayers[pUid] = {
+        ...updatedPlayers[pUid],
+        status: "show" as PlayerStatus,
+        isMyTurn: false,
+        turnStartedAt: null,
+        autoCallAt: null,
+      };
+    }
 
     const historyEntry: RoundHistory = {
       round: table.round,
@@ -627,64 +790,103 @@ export async function showHands(tableId: string, uid: string): Promise<void> {
       winnerName: winnerId ? table.players[winnerId].displayName : null,
       pot,
       reason: winnerReason,
-      isDraw: isDrawResult,
+      isDraw,
       timestamp: serverTimestamp() as Timestamp,
     };
 
-    // ── WRITE TABLE ──
+    // ── WRITES ──
+    // 1. Table update
     tx.update(tableRef(tableId), {
       players: updatedPlayers,
       winnerId,
       winnerReason,
-      isDraw: isDrawResult,
+      isDraw,
       status: "finished",
       history: [...table.history, historyEntry],
       updatedAt: serverTimestamp(),
     });
 
-    // ── WRITE WALLETS ──
-    if (isDrawResult) {
+    // 2. Wallet + transaction log writes
+    if (isDraw) {
+      // Split pot
       const half = Math.floor(pot / 2);
-      const remainder = pot - half * 2; // Handle odd amounts
+      const remainder = pot - half * 2;
+
       for (let i = 0; i < order.length; i++) {
         const pUid = order[i];
-        const extra = i === 0 ? remainder : 0; // Give remainder to first player
-        tx.update(walletReads[pUid].ref, {
-          balance: walletReads[pUid].balance + half + extra,
+        const extra = i === 0 ? remainder : 0;
+        const payout = half + extra;
+        const addition = computeWalletAddition(wallets[pUid], payout);
+
+        tx.update(walletRefs[pUid], {
+          winningBalance: addition.newWinning,
           updatedAt: serverTimestamp(),
+        });
+
+        tx.set(txLogRefs[pUid], {
+          uid: pUid,
+          type: "GAME_WIN",
+          amount: payout,
+          previousBalance: addition.previousBalance,
+          currentBalance: addition.currentBalance,
+          status: "COMPLETED",
+          description: `9 Card — Draw, pot split ₹${payout}`,
+          tableId,
+          createdAt: serverTimestamp(),
         });
       }
     } else if (winnerId) {
-      tx.update(walletReads[winnerId].ref, {
-        balance: walletReads[winnerId].balance + pot,
+      // Winner gets full pot
+      const addition = computeWalletAddition(wallets[winnerId], pot);
+
+      tx.update(walletRefs[winnerId], {
+        winningBalance: addition.newWinning,
         updatedAt: serverTimestamp(),
+      });
+
+      tx.set(txLogRefs[winnerId], {
+        uid: winnerId,
+        type: "GAME_WIN",
+        amount: pot,
+        previousBalance: addition.previousBalance,
+        currentBalance: addition.currentBalance,
+        status: "COMPLETED",
+        description: `9 Card win — Show ₹${pot}`,
+        tableId,
+        createdAt: serverTimestamp(),
       });
     }
   });
 }
 
-/**
- * ✅ FIX: leaveTable — player completely removed, pot distributed
- */
-export async function leaveTable(tableId: string, uid: string): Promise<void> {
+export async function leaveTable(
+  tableId: string,
+  uid: string
+): Promise<void> {
   await runTransaction(db, async (tx) => {
-    // ── READ FIRST ──
+    // ── READS ──
     const snap = await tx.get(tableRef(tableId));
     if (!snap.exists()) return;
     const table = snap.data() as NineCardTable;
 
     if (!table.players[uid]) return;
 
-    // If game is active — opponent wins pot
+    // Game active hai — opponent wins
     if (table.status === "playing" || table.status === "booting") {
       const oppUid = table.playerOrder.find((id) => id !== uid);
 
-      if (oppUid && table.players[oppUid]) {
-        // Read opponent wallet BEFORE write
-        const wRef = doc(db, "wallets", oppUid);
-        const wSnap = await tx.get(wRef);
+      if (oppUid && table.players[oppUid] && table.pot > 0) {
+        // Opponent wallet read
+        const oppWalletRef = doc(db, "wallets", oppUid);
+        const oppWalletSnap = await tx.get(oppWalletRef);
+        if (!oppWalletSnap.exists()) throw new Error("Opponent wallet not found");
+        const oppWallet = oppWalletSnap.data() as Wallet;
+
+        const txLogRef = doc(collection(db, "transactions"));
 
         // ── COMPUTE ──
+        const addition = computeWalletAddition(oppWallet, table.pot);
+
         const historyEntry: RoundHistory = {
           round: table.round || 0,
           winnerId: oppUid,
@@ -695,9 +897,7 @@ export async function leaveTable(tableId: string, uid: string): Promise<void> {
           timestamp: serverTimestamp() as Timestamp,
         };
 
-        // ✅ FIX: Remove leaving player completely from players map
         const updatedPlayers = { ...table.players };
-        // Keep for winner overlay display, but mark as disconnected/packed
         updatedPlayers[uid] = {
           ...updatedPlayers[uid],
           status: "packed" as PlayerStatus,
@@ -707,7 +907,24 @@ export async function leaveTable(tableId: string, uid: string): Promise<void> {
           autoCallAt: null,
         };
 
-        // ── WRITE ──
+        // ── WRITES ──
+        tx.update(oppWalletRef, {
+          winningBalance: addition.newWinning,
+          updatedAt: serverTimestamp(),
+        });
+
+        tx.set(txLogRef, {
+          uid: oppUid,
+          type: "GAME_WIN",
+          amount: table.pot,
+          previousBalance: addition.previousBalance,
+          currentBalance: addition.currentBalance,
+          status: "COMPLETED",
+          description: `9 Card win — Opponent left`,
+          tableId,
+          createdAt: serverTimestamp(),
+        });
+
         tx.update(tableRef(tableId), {
           status: "finished",
           winnerId: oppUid,
@@ -717,18 +934,11 @@ export async function leaveTable(tableId: string, uid: string): Promise<void> {
           history: [...table.history, historyEntry],
           updatedAt: serverTimestamp(),
         });
-
-        if (wSnap.exists() && table.pot > 0) {
-          tx.update(wRef, {
-            balance: (wSnap.data().balance as number) + table.pot,
-            updatedAt: serverTimestamp(),
-          });
-        }
-        return;
       }
+      return;
     }
 
-    // ✅ FIX: Not in game — completely remove player from table
+    // Waiting/finished — player ko remove karo
     const updatedPlayers = { ...table.players };
     delete updatedPlayers[uid];
     const updatedOrder = table.playerOrder.filter((id) => id !== uid);
@@ -744,9 +954,6 @@ export async function leaveTable(tableId: string, uid: string): Promise<void> {
   });
 }
 
-/**
- * ✅ FIX: autoStartGame — all reads before writes
- */
 export async function autoStartGame(tableId: string): Promise<void> {
   await runTransaction(db, async (tx) => {
     // ── READ 1: Table ──
@@ -757,31 +964,40 @@ export async function autoStartGame(tableId: string): Promise<void> {
     if (table.status !== "waiting") return;
     if (Object.keys(table.players).length < table.minPlayers) return;
 
-    // ── READ 2: All Wallets ──
-    const walletData: Record<string, { balance: number }> = {};
+    // ── READ 2: ALL Wallets pehle ──
+    const walletRefs: Record<string, ReturnType<typeof doc>> = {};
+    const wallets: Record<string, Wallet> = {};
+    const txLogRefs: Record<string, ReturnType<typeof doc>> = {};
+
     for (const uid of table.playerOrder) {
-      const wRef = doc(db, "wallets", uid);
-      const wSnap = await tx.get(wRef);
+      walletRefs[uid] = doc(db, "wallets", uid);
+      const wSnap = await tx.get(walletRefs[uid]);
       if (!wSnap.exists())
         throw new Error(`${table.players[uid].displayName} ka wallet nahi mila`);
-      walletData[uid] = { balance: wSnap.data().balance as number };
+      wallets[uid] = wSnap.data() as Wallet;
+      txLogRefs[uid] = doc(collection(db, "transactions"));
     }
 
-    // ── VALIDATE (after reads) ──
+    // ── VALIDATE ──
     for (const uid of table.playerOrder) {
       const p = table.players[uid];
-      if (!p.hasPaidBoot && walletData[uid].balance < table.bootAmount) {
-        throw new Error(`${p.displayName} ka balance kam hai`);
+      if (!p.hasPaidBoot) {
+        const usable = calculateUsableBalance(wallets[uid]);
+        if (usable < table.bootAmount) {
+          throw new Error(`${p.displayName} ka balance kam hai (₹${table.bootAmount} chahiye)`);
+        }
       }
     }
 
     // ── COMPUTE ──
     const updatedPlayers = { ...table.players };
+    const deductions: Record<string, ReturnType<typeof computeWalletDeduction>> = {};
     let newPot = table.pot;
 
     for (const uid of table.playerOrder) {
       const p = table.players[uid];
       if (!p.hasPaidBoot) {
+        deductions[uid] = computeWalletDeduction(wallets[uid], table.bootAmount);
         updatedPlayers[uid] = {
           ...p,
           hasPaidBoot: true,
@@ -791,6 +1007,7 @@ export async function autoStartGame(tableId: string): Promise<void> {
       }
     }
 
+    // Deal cards
     const deck = shuffleDeck(buildDeck());
     const deckIds = deck.map((c) => c.id);
     let deckIdx = 0;
@@ -801,26 +1018,41 @@ export async function autoStartGame(tableId: string): Promise<void> {
       updatedPlayers[uid] = {
         ...updatedPlayers[uid],
         cardIds: [deckIds[deckIdx++], deckIds[deckIdx++]],
-        status: "blind",
+        status: "blind" as PlayerStatus,
         isMyTurn: i === 0,
-        // ✅ Set turn timer for first player
         turnStartedAt: i === 0 ? now : null,
         autoCallAt: i === 0 ? now : null,
       };
     }
 
-    // ── WRITE 1: Wallets ──
+    // ── WRITES ──
+    // 1. Wallet deductions + transaction logs
     for (const uid of table.playerOrder) {
       if (!table.players[uid].hasPaidBoot) {
-        const wRef = doc(db, "wallets", uid);
-        tx.update(wRef, {
-          balance: walletData[uid].balance - table.bootAmount,
+        const d = deductions[uid];
+        tx.update(walletRefs[uid], {
+          depositBalance: d.newDeposit,
+          winningBalance: d.newWinning,
+          referralBalance: d.newReferral,
+          bonusBalance: d.newBonus,
           updatedAt: serverTimestamp(),
+        });
+
+        tx.set(txLogRefs[uid], {
+          uid,
+          type: "GAME_BET",
+          amount: -table.bootAmount,
+          previousBalance: d.previousBalance,
+          currentBalance: d.currentBalance,
+          status: "COMPLETED",
+          description: `9 Card boot amount ₹${table.bootAmount}`,
+          tableId,
+          createdAt: serverTimestamp(),
         });
       }
     }
 
-    // ── WRITE 2: Table ──
+    // 2. Table update
     tx.update(tableRef(tableId), {
       players: updatedPlayers,
       pot: newPot,
@@ -838,17 +1070,16 @@ export async function autoStartGame(tableId: string): Promise<void> {
   });
 }
 
-/**
- * ✅ NEW: Auto-call when timer expires
- */
-export async function autoCallBet(tableId: string, uid: string): Promise<void> {
+export async function autoCallBet(
+  tableId: string,
+  uid: string
+): Promise<void> {
   await runTransaction(db, async (tx) => {
-    // ── READ FIRST ──
+    // ── READS ──
     const snap = await tx.get(tableRef(tableId));
     if (!snap.exists()) return;
     const table = snap.data() as NineCardTable;
 
-    // Only auto-call if it's still this player's turn and game is active
     if (table.currentTurn !== uid) return;
     if (table.status !== "playing") return;
 
@@ -859,28 +1090,38 @@ export async function autoCallBet(tableId: string, uid: string): Promise<void> {
     const walletRef = doc(db, "wallets", uid);
     const walletSnap = await tx.get(walletRef);
     if (!walletSnap.exists()) return;
-    const balance = walletSnap.data().balance as number;
+    const wallet = walletSnap.data() as Wallet;
+
+    const txLogRef = doc(collection(db, "transactions"));
 
     // ── COMPUTE ──
-    // If insufficient balance, auto-pack instead
-    if (balance < callAmt) {
-      const order = table.playerOrder.filter(
-        (id) => table.players[id]?.status !== "packed"
-      );
-      const myIdx = order.indexOf(uid);
-      const winnerUid = order[(myIdx + 1) % order.length];
-      const winnerPlayer = table.players[winnerUid];
+    const activePlayers = table.playerOrder.filter(
+      (id) => table.players[id]?.status !== "packed"
+    );
+    const myIdx = activePlayers.indexOf(uid);
+    const nextIdx = (myIdx + 1) % activePlayers.length;
+    const nextUid = activePlayers[nextIdx];
+    const now = serverTimestamp() as Timestamp;
 
-      const wRef = doc(db, "wallets", winnerUid);
-      const wSnap = await tx.get(wRef);
-      if (!wSnap.exists()) return;
+    const usable = calculateUsableBalance(wallet);
+
+    // Balance nahi hai — auto pack
+    if (usable < callAmt) {
+      const winnerUid = nextUid;
+      const winnerWalletRef = doc(db, "wallets", winnerUid);
+      const winnerWalletSnap = await tx.get(winnerWalletRef);
+      if (!winnerWalletSnap.exists()) return;
+      const winnerWallet = winnerWalletSnap.data() as Wallet;
+
+      const winTxRef = doc(collection(db, "transactions"));
+      const addition = computeWalletAddition(winnerWallet, table.pot);
 
       const historyEntry: RoundHistory = {
         round: table.round,
         winnerId: winnerUid,
-        winnerName: winnerPlayer.displayName,
+        winnerName: table.players[winnerUid].displayName,
         pot: table.pot,
-        reason: `${player.displayName} auto-packed (no balance)`,
+        reason: `${player.displayName} auto-packed (insufficient balance)`,
         isDraw: false,
         timestamp: serverTimestamp() as Timestamp,
       };
@@ -888,12 +1129,28 @@ export async function autoCallBet(tableId: string, uid: string): Promise<void> {
       const updatedPlayers = { ...table.players };
       updatedPlayers[uid] = {
         ...player,
-        status: "packed",
+        status: "packed" as PlayerStatus,
         isMyTurn: false,
         turnStartedAt: null,
         autoCallAt: null,
       };
 
+      // ── WRITES ──
+      tx.update(winnerWalletRef, {
+        winningBalance: addition.newWinning,
+        updatedAt: serverTimestamp(),
+      });
+      tx.set(winTxRef, {
+        uid: winnerUid,
+        type: "GAME_WIN",
+        amount: table.pot,
+        previousBalance: addition.previousBalance,
+        currentBalance: addition.currentBalance,
+        status: "COMPLETED",
+        description: `9 Card win — Opponent timed out`,
+        tableId,
+        createdAt: serverTimestamp(),
+      });
       tx.update(tableRef(tableId), {
         players: updatedPlayers,
         winnerId: winnerUid,
@@ -903,23 +1160,12 @@ export async function autoCallBet(tableId: string, uid: string): Promise<void> {
         history: [...table.history, historyEntry],
         updatedAt: serverTimestamp(),
       });
-
-      tx.update(wRef, {
-        balance: (wSnap.data().balance as number) + table.pot,
-        updatedAt: serverTimestamp(),
-      });
       return;
     }
 
-    // Auto-call
-    const order = table.playerOrder.filter(
-      (id) => table.players[id]?.status !== "packed"
-    );
-    const myIdx = order.indexOf(uid);
-    const nextIdx = (myIdx + 1) % order.length;
-    const nextUid = order[nextIdx];
+    // Auto call
+    const deduction = computeWalletDeduction(wallet, callAmt);
 
-    const nowTs = serverTimestamp() as Timestamp;
     const updatedPlayers = { ...table.players };
     updatedPlayers[uid] = {
       ...player,
@@ -932,20 +1178,35 @@ export async function autoCallBet(tableId: string, uid: string): Promise<void> {
     updatedPlayers[nextUid] = {
       ...updatedPlayers[nextUid],
       isMyTurn: true,
-      turnStartedAt: nowTs,
-      autoCallAt: nowTs,
+      turnStartedAt: now,
+      autoCallAt: now,
     };
 
-    // ── WRITE ──
+    // ── WRITES ──
+    tx.update(walletRef, {
+      depositBalance: deduction.newDeposit,
+      winningBalance: deduction.newWinning,
+      referralBalance: deduction.newReferral,
+      bonusBalance: deduction.newBonus,
+      updatedAt: serverTimestamp(),
+    });
+
+    tx.set(txLogRef, {
+      uid,
+      type: "GAME_BET",
+      amount: -callAmt,
+      previousBalance: deduction.previousBalance,
+      currentBalance: deduction.currentBalance,
+      status: "COMPLETED",
+      description: `9 Card — Auto-call ₹${callAmt}`,
+      tableId,
+      createdAt: serverTimestamp(),
+    });
+
     tx.update(tableRef(tableId), {
       players: updatedPlayers,
       pot: table.pot + callAmt,
       currentTurn: nextUid,
-      updatedAt: serverTimestamp(),
-    });
-
-    tx.update(walletRef, {
-      balance: balance - callAmt,
       updatedAt: serverTimestamp(),
     });
   });
