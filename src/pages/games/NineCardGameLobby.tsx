@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuthContext } from "../context/AuthContext";
+import { useAuthContext } from "../../context/AuthContext";
 import {
   subscribeLobby,
   joinTable,
@@ -13,7 +13,7 @@ import {
   adminToggleLock,
   adminDeleteTable,
   type NineCardTable,
-} from "../firebase/NineCard";
+} from "../../firebase/NineCard";
 
 // ─── helpers ───────────────────────────────────
 function statusColor(status: NineCardTable["status"]): string {
