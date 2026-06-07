@@ -326,7 +326,7 @@ export default function NineCardGameLobby() {
     setError("");
     try {
       await joinTable(tableId, user.uid, user.displayName || "Player", user.photoURL || undefined);
-      navigate(`/nine-card/${tableId}`);
+      navigate(`/games/nine-card/${tableId}`);
     } catch (e: any) {
       setError(e.message);
     } finally {
