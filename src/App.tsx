@@ -76,7 +76,7 @@ export default function App() {
                 <Route path="/games/DragonTiger" element={<DragonTigerPage />} />
                 <Route path="/games/ludo" element={<LudoLobby />} />
                 <Route path="/games/ninecard" element={<NineCardGameLobby />} />
-                <Route path="/games/nine-card/:tableId" element={<NineCardGame />} />
+                
 
                 
                 {/* Admin routes */}
