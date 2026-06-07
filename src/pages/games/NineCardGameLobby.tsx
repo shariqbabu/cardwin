@@ -323,7 +323,7 @@ export default function NineCardGameLobby() {
 
     // Already in table → navigate directly
     if (table.players[user.uid]) {
-      navigate(`/nine-card/${tableId}`);
+      navigate(`/games/nine-card/${tableId}`);
       return;
     }
 
