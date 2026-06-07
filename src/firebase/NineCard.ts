@@ -62,7 +62,7 @@ export interface NineCardPlayer {
 }
 
 export type TableStatus =
-  | "waiting"   // waiting for 2nd player
+  | "waiting"   // waiting for players
   | "booting"   // collecting boot amounts
   | "playing"   // game in progress
   | "showdown"  // cards being revealed
@@ -334,7 +334,7 @@ export async function adminDeleteTable(tableId: string): Promise<void> {
 // PLAYER ACTIONS
 // ─────────────────────────────────────────────
 
-/** Join a table */
+/** Join a table — auto-locks when full */
 export async function joinTable(
   tableId: string,
   uid: string,
@@ -371,9 +371,14 @@ export async function joinTable(
     const updatedPlayers = { ...table.players, [uid]: player };
     const updatedOrder = [...table.playerOrder, uid];
 
+    // ✅ FIX 1: Auto-lock table when it reaches maxPlayers
+    const willBeFull = Object.keys(updatedPlayers).length >= table.maxPlayers;
+
     tx.update(tableRef(tableId), {
       players: updatedPlayers,
       playerOrder: updatedOrder,
+      // Lock table so no extra players can join once full
+      locked: willBeFull ? true : table.locked,
       updatedAt: serverTimestamp(),
     });
   });
@@ -689,12 +694,15 @@ export async function leaveTable(
 
     if (!table.players[uid]) return;
 
-    // If game playing and player leaves, opponent wins
-    if (table.status === "playing") {
+    // ✅ FIX 2: If game is playing OR booting and player leaves, opponent wins the pot
+    if (table.status === "playing" || table.status === "booting") {
       const order = table.playerOrder;
       const myIdx = order.indexOf(uid);
-      const oppUid = order[(myIdx + 1) % order.length];
-      if (oppUid && table.players[oppUid]) {
+
+      // Find an opponent who is still in (not this player)
+      const oppUid = order.find((id) => id !== uid);
+
+      if (oppUid && table.players[oppUid] && table.pot > 0) {
         const wRef = doc(db, "wallets", oppUid);
         const wSnap = await tx.get(wRef);
         if (wSnap.exists()) {
@@ -703,16 +711,36 @@ export async function leaveTable(
             updatedAt: serverTimestamp(),
           });
         }
+
+        const historyEntry: RoundHistory = {
+          round: table.round || 0,
+          winnerId: oppUid,
+          winnerName: table.players[oppUid].displayName,
+          pot: table.pot,
+          reason: `${table.players[uid].displayName} left the game`,
+          isDraw: false,
+          timestamp: serverTimestamp() as Timestamp,
+        };
+
         tx.update(tableRef(tableId), {
           status: "finished",
           winnerId: oppUid,
-          winnerReason: "Opponent disconnected",
+          winnerReason: "Opponent left the game",
+          isDraw: false,
+          pot: table.pot,
+          // Keep players so winner overlay shows correctly
+          players: {
+            ...table.players,
+            [uid]: { ...table.players[uid], status: "packed" as PlayerStatus, connected: false },
+          },
+          history: [...table.history, historyEntry],
           updatedAt: serverTimestamp(),
         });
         return;
       }
     }
 
+    // Not in game — just remove player
     const updatedPlayers = { ...table.players };
     delete updatedPlayers[uid];
     const updatedOrder = table.playerOrder.filter((id) => id !== uid);
@@ -720,6 +748,8 @@ export async function leaveTable(
     tx.update(tableRef(tableId), {
       players: updatedPlayers,
       playerOrder: updatedOrder,
+      // ✅ Unlock table when player leaves so someone else can join
+      locked: false,
       status: updatedOrder.length === 0 ? "waiting" : table.status,
       updatedAt: serverTimestamp(),
     });
@@ -755,6 +785,8 @@ export async function resetTable(tableId: string): Promise<void> {
     winnerId: null,
     winnerReason: null,
     isDraw: false,
+    // Keep locked if still 2 players, unlock if someone left
+    locked: Object.keys(resetPlayers).length >= table.maxPlayers,
     status: "waiting",
     updatedAt: serverTimestamp(),
   });
