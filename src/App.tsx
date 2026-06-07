@@ -13,6 +13,8 @@ import PokerLobbyPage from './pages/games/PokerLobby';
 import { ColorPrediction } from './pages/games/ColorPrediction';
 import LudoLobby from './pages/games/LudoLobby';
 import LudoGame from './pages/games/LudoGame';
+import NineCardGame from './pages/games/NineCardGame';
+import NineCardGameLobby from './pages/games/NineCardGameLobby';
 
 
 // Pages
@@ -73,6 +75,8 @@ export default function App() {
                 <Route path="/games/color-prediction" element={<ColorPrediction />} />
                 <Route path="/games/DragonTiger" element={<DragonTigerPage />} />
                 <Route path="/games/ludo" element={<LudoLobby />} />
+                <Route path="/games/nine-card" element={<NineCardGame />} />
+                <Route path="/games/nine-card/:tableId" element={<NineCardGamelobby />} />
 
                 
                 {/* Admin routes */}
