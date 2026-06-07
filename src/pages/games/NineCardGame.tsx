@@ -400,7 +400,7 @@ function WinnerOverlay({
 export default function NineCardGame() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
-  const { user, userProfile } =  useAutht();
+  const { user, isAdmin } =  useAuth();
   const [table, setTable] = useState<NineCardTable | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
