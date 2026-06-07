@@ -406,8 +406,6 @@ export default function NineCardGame() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const hasLeft = useRef(false);
-
-  const isAdmin = userProfile?.isAdmin === true;
   const myUid = user?.uid || "";
 
   // Subscribe
