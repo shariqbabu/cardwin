@@ -25,7 +25,7 @@ import {
   type NineCardTable,
   type NineCardPlayer,
   type Card,
-} from "../firebase/NineCard";
+} from "../../firebase/NineCard";
 
 // ─── Card Visual ─────────────────────────────────
 const RED_SUITS = new Set(["♥", "♦"]);
