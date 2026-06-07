@@ -62,7 +62,7 @@ export interface NineCardPlayer {
 }
 
 export type TableStatus =
-  | "waiting"   // waiting for 2nd player
+  | "waiting"   // waiting for players
   | "booting"   // collecting boot amounts
   | "playing"   // game in progress
   | "showdown"  // cards being revealed
@@ -334,7 +334,7 @@ export async function adminDeleteTable(tableId: string): Promise<void> {
 // PLAYER ACTIONS
 // ─────────────────────────────────────────────
 
-/** Join a table */
+/** Join a table — auto-locks when full */
 export async function joinTable(
   tableId: string,
   uid: string,
@@ -371,9 +371,14 @@ export async function joinTable(
     const updatedPlayers = { ...table.players, [uid]: player };
     const updatedOrder = [...table.playerOrder, uid];
 
+    // ✅ FIX 1: Auto-lock table when it reaches maxPlayers
+    const willBeFull = Object.keys(updatedPlayers).length >= table.maxPlayers;
+
     tx.update(tableRef(tableId), {
       players: updatedPlayers,
       playerOrder: updatedOrder,
+      // Lock table so no extra players can join once full
+      locked: willBeFull ? true : table.locked,
       updatedAt: serverTimestamp(),
     });
   });
@@ -576,7 +581,7 @@ export async function packHand(
       pot,
       reason: `${table.players[uid].displayName} packed`,
       isDraw: false,
-      timestamp: null, // serverTimestamp() array mein allowed nahi
+      timestamp: serverTimestamp() as Timestamp,
     };
 
     tx.update(tableRef(tableId), {
@@ -639,7 +644,7 @@ export async function showHands(
       pot,
       reason: winnerReason,
       isDraw,
-      timestamp: null, // serverTimestamp() array mein allowed nahi
+      timestamp: serverTimestamp() as Timestamp,
     };
 
     tx.update(tableRef(tableId), {
@@ -689,12 +694,15 @@ export async function leaveTable(
 
     if (!table.players[uid]) return;
 
-    // If game playing and player leaves, opponent wins
-    if (table.status === "playing") {
+    // ✅ FIX 2: If game is playing OR booting and player leaves, opponent wins the pot
+    if (table.status === "playing" || table.status === "booting") {
       const order = table.playerOrder;
       const myIdx = order.indexOf(uid);
-      const oppUid = order[(myIdx + 1) % order.length];
-      if (oppUid && table.players[oppUid]) {
+
+      // Find an opponent who is still in (not this player)
+      const oppUid = order.find((id) => id !== uid);
+
+      if (oppUid && table.players[oppUid] && table.pot > 0) {
         const wRef = doc(db, "wallets", oppUid);
         const wSnap = await tx.get(wRef);
         if (wSnap.exists()) {
@@ -703,16 +711,36 @@ export async function leaveTable(
             updatedAt: serverTimestamp(),
           });
         }
+
+        const historyEntry: RoundHistory = {
+          round: table.round || 0,
+          winnerId: oppUid,
+          winnerName: table.players[oppUid].displayName,
+          pot: table.pot,
+          reason: `${table.players[uid].displayName} left the game`,
+          isDraw: false,
+          timestamp: serverTimestamp() as Timestamp,
+        };
+
         tx.update(tableRef(tableId), {
           status: "finished",
           winnerId: oppUid,
-          winnerReason: "Opponent disconnected",
+          winnerReason: "Opponent left the game",
+          isDraw: false,
+          pot: table.pot,
+          // Keep players so winner overlay shows correctly
+          players: {
+            ...table.players,
+            [uid]: { ...table.players[uid], status: "packed" as PlayerStatus, connected: false },
+          },
+          history: [...table.history, historyEntry],
           updatedAt: serverTimestamp(),
         });
         return;
       }
     }
 
+    // Not in game — just remove player
     const updatedPlayers = { ...table.players };
     delete updatedPlayers[uid];
     const updatedOrder = table.playerOrder.filter((id) => id !== uid);
@@ -720,11 +748,99 @@ export async function leaveTable(
     tx.update(tableRef(tableId), {
       players: updatedPlayers,
       playerOrder: updatedOrder,
+      // ✅ Unlock table when player leaves so someone else can join
+      locked: false,
       status: updatedOrder.length === 0 ? "waiting" : table.status,
       updatedAt: serverTimestamp(),
     });
   });
 }
+
+/**
+ * Auto-start: countdown khatam hone pe call hota hai.
+ * IMPORTANT: Firestore transaction rule — saare reads pehle, phir saare writes.
+ */
+export async function autoStartGame(tableId: string): Promise<void> {
+  await runTransaction(db, async (tx) => {
+    // ─── STEP 1: SAARE READS PEHLE ───────────────────────
+    const snap = await tx.get(tableRef(tableId));
+    if (!snap.exists()) return;
+    const table = snap.data() as NineCardTable;
+
+    if (table.status !== "waiting") return;
+    if (Object.keys(table.players).length < table.minPlayers) return;
+
+    // Saare wallet reads ek saath pehle
+    const walletSnaps: Record<string, number> = {};
+    for (const uid of table.playerOrder) {
+      const wRef = doc(db, "wallets", uid);
+      const wSnap = await tx.get(wRef);
+      if (!wSnap.exists()) throw new Error(`${table.players[uid].displayName} ka wallet nahi mila`);
+      walletSnaps[uid] = wSnap.data().balance as number;
+    }
+
+    // Balance check (read ke baad, write se pehle)
+    for (const uid of table.playerOrder) {
+      const p = table.players[uid];
+      if (!p.hasPaidBoot && walletSnaps[uid] < table.bootAmount) {
+        throw new Error(`${p.displayName} ka balance kam hai`);
+      }
+    }
+
+    // ─── STEP 2: COMPUTE (no Firebase calls) ─────────────
+    const updatedPlayers = { ...table.players };
+    let newPot = table.pot;
+
+    for (const uid of table.playerOrder) {
+      const p = table.players[uid];
+      if (!p.hasPaidBoot) {
+        updatedPlayers[uid] = { ...p, hasPaidBoot: true, currentBet: table.bootAmount };
+        newPot += table.bootAmount;
+      }
+    }
+
+    // Deal cards
+    const deck = shuffleDeck(buildDeck());
+    const deckIds = deck.map((c) => c.id);
+    let deckIdx = 0;
+
+    for (const uid of table.playerOrder) {
+      updatedPlayers[uid] = {
+        ...updatedPlayers[uid],
+        cardIds: [deckIds[deckIdx++], deckIds[deckIdx++]],
+        status: "blind",
+        isMyTurn: uid === table.playerOrder[0],
+      };
+    }
+
+    // ─── STEP 3: SAARE WRITES BAAD MEIN ──────────────────
+    // Wallet writes
+    for (const uid of table.playerOrder) {
+      if (!table.players[uid].hasPaidBoot) {
+        const wRef = doc(db, "wallets", uid);
+        tx.update(wRef, {
+          balance: walletSnaps[uid] - table.bootAmount,
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
+
+    // Table write
+    tx.update(tableRef(tableId), {
+      players: updatedPlayers,
+      pot: newPot,
+      status: "playing",
+      locked: true,
+      deck: deckIds,
+      deckIndex: deckIdx,
+      currentTurn: table.playerOrder[0],
+      currentCallAmount: table.bootAmount,
+      round: (table.round || 0) + 1,
+      updatedAt: serverTimestamp(),
+    });
+  });
+}
+
 /** Reset table for next round */
 export async function resetTable(tableId: string): Promise<void> {
   const snap = await getDoc(tableRef(tableId));
@@ -754,71 +870,9 @@ export async function resetTable(tableId: string): Promise<void> {
     winnerId: null,
     winnerReason: null,
     isDraw: false,
+    // Keep locked if still 2 players, unlock if someone left
+    locked: Object.keys(resetPlayers).length >= table.maxPlayers,
     status: "waiting",
     updatedAt: serverTimestamp(),
-  });
-}
-
-/**
- * Auto-start: Sab players ke liye boot pay karo aur game shuru karo.
- * Ye tab call hota hai jab 15 second countdown khatam ho.
- */
-export async function autoStartGame(tableId: string): Promise<void> {
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(tableRef(tableId));
-    if (!snap.exists()) return;
-    const table = snap.data() as NineCardTable;
-
-    if (table.status !== "waiting") return;
-    if (Object.keys(table.players).length < table.minPlayers) return;
-
-    // Sab players ki wallet check karo aur boot deduct karo
-    const updatedPlayers = { ...table.players };
-    let newPot = table.pot;
-
-    for (const uid of table.playerOrder) {
-      const p = table.players[uid];
-      if (p.hasPaidBoot) continue;
-
-      const walletRef = doc(db, "wallets", uid);
-      const walletSnap = await tx.get(walletRef);
-      if (!walletSnap.exists()) throw new Error(`Wallet not found for ${uid}`);
-      const balance = walletSnap.data().balance as number;
-      if (balance < table.bootAmount) throw new Error(`${p.displayName} ka balance kam hai`);
-
-      tx.update(walletRef, {
-        balance: balance - table.bootAmount,
-        updatedAt: serverTimestamp(),
-      });
-
-      updatedPlayers[uid] = { ...p, hasPaidBoot: true, currentBet: table.bootAmount };
-      newPot += table.bootAmount;
-    }
-
-    // Cards deal karo
-    const deck = shuffleDeck(buildDeck());
-    const deckIds = deck.map((c) => c.id);
-    let deckIdx = 0;
-
-    for (const uid of table.playerOrder) {
-      updatedPlayers[uid] = {
-        ...updatedPlayers[uid],
-        cardIds: [deckIds[deckIdx++], deckIds[deckIdx++]],
-        status: "blind",
-        isMyTurn: uid === table.playerOrder[0],
-      };
-    }
-
-    tx.update(tableRef(tableId), {
-      players: updatedPlayers,
-      pot: newPot,
-      status: "playing",
-      deck: deckIds,
-      deckIndex: deckIdx,
-      currentTurn: table.playerOrder[0],
-      currentCallAmount: table.bootAmount,
-      round: 1,
-      updatedAt: serverTimestamp(),
-    });
   });
 }
