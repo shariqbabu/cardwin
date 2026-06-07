@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuthContext } from "../../context/AuthContext";
+import {  useAuth } from "../../context/AuthContext";
 import {
   subscribeLobby,
   joinTable,
@@ -299,7 +299,7 @@ function TableCard({
 // ─── Main Lobby ──────────────────────────────────
 export default function NineCardGameLobby() {
   const navigate = useNavigate();
-  const { user, userProfile } = useAuthContext();
+  const { user, userProfile } =  useAuth();
   const [tables, setTables] = useState<NineCardTable[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
