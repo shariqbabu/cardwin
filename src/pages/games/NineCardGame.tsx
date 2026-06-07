@@ -10,7 +10,7 @@ import React, {
   useMemo,
 } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useAuthContext } from "../../context/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 import {
   subscribeTable,
   payBoot,
@@ -400,7 +400,7 @@ function WinnerOverlay({
 export default function NineCardGame() {
   const { tableId } = useParams<{ tableId: string }>();
   const navigate = useNavigate();
-  const { user, userProfile } = useAuthContext();
+  const { user, userProfile } =  useAutht();
   const [table, setTable] = useState<NineCardTable | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
