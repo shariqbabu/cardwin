@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import {  useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 import {
   subscribeLobby,
   joinTable,
@@ -18,25 +18,25 @@ import {
 // ─── helpers ───────────────────────────────────
 function statusColor(status: NineCardTable["status"]): string {
   switch (status) {
-    case "waiting":   return "text-emerald-400";
-    case "booting":   return "text-yellow-400";
-    case "playing":   return "text-blue-400";
-    case "finished":  return "text-purple-400";
-    case "showdown":  return "text-orange-400";
-    case "disabled":  return "text-red-500";
-    default:          return "text-gray-400";
+    case "waiting":  return "text-emerald-400";
+    case "booting":  return "text-yellow-400";
+    case "playing":  return "text-blue-400";
+    case "finished": return "text-purple-400";
+    case "showdown": return "text-orange-400";
+    case "disabled": return "text-red-500";
+    default:         return "text-gray-400";
   }
 }
 
 function statusLabel(status: NineCardTable["status"]): string {
   switch (status) {
-    case "waiting":   return "Open";
-    case "booting":   return "Starting…";
-    case "playing":   return "In Play";
-    case "finished":  return "Finished";
-    case "showdown":  return "Showdown";
-    case "disabled":  return "Disabled";
-    default:          return status;
+    case "waiting":  return "Open";
+    case "booting":  return "Starting…";
+    case "playing":  return "In Play";
+    case "finished": return "Finished";
+    case "showdown": return "Showdown";
+    case "disabled": return "Disabled";
+    default:         return status;
   }
 }
 
@@ -72,9 +72,7 @@ function CreateTableModal({ onClose, adminUid }: CreateFormProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
       <div className="w-full max-w-md bg-[#0e1a14] border border-emerald-800/60 rounded-2xl p-6 shadow-2xl">
-        <h2 className="text-xl font-bold text-emerald-300 mb-5 tracking-wide">
-          Create New Table
-        </h2>
+        <h2 className="text-xl font-bold text-emerald-300 mb-5 tracking-wide">Create New Table</h2>
 
         {err && (
           <p className="text-red-400 text-sm mb-3 bg-red-900/20 rounded-lg px-3 py-2">{err}</p>
@@ -153,48 +151,47 @@ interface TableCardProps {
   onLock: (id: string, locked: boolean) => void;
   onDelete: (id: string) => void;
 }
-function TableCard({
-  table,
-  currentUid,
-  isAdmin,
-  onJoin,
-  onToggle,
-  onLock,
-  onDelete,
-}: TableCardProps) {
+function TableCard({ table, currentUid, isAdmin, onJoin, onToggle, onLock, onDelete }: TableCardProps) {
   const count = playerCount(table);
   const isFull = count >= table.maxPlayers;
   const isInGame = table.status === "playing" || table.status === "booting";
   const isDisabled = table.status === "disabled";
   const alreadyIn = !!table.players[currentUid];
+  // ✅ FIX: table.locked is auto-set when full, so canJoin correctly shows Full/Locked
   const canJoin = !isDisabled && !isFull && !isInGame && !table.locked;
 
+  // Label for join button
+  const joinLabel = () => {
+    if (isFull) return "Full";
+    if (isInGame) return "In Game";
+    if (table.locked) return "Locked";
+    if (isDisabled) return "Disabled";
+    return "Join Table";
+  };
+
   return (
-    <div
-      className={`
-        relative flex flex-col bg-[#0c1810] border rounded-2xl overflow-hidden transition-all duration-200
-        ${isDisabled ? "border-red-900/40 opacity-60" : "border-emerald-900/50 hover:border-emerald-700/80 hover:shadow-lg hover:shadow-emerald-900/20"}
-      `}
-    >
-      {/* Top accent bar */}
+    <div className={`
+      relative flex flex-col bg-[#0c1810] border rounded-2xl overflow-hidden transition-all duration-200
+      ${isDisabled ? "border-red-900/40 opacity-60" : "border-emerald-900/50 hover:border-emerald-700/80 hover:shadow-lg hover:shadow-emerald-900/20"}
+    `}>
       <div className={`h-1 w-full ${isDisabled ? "bg-red-800" : "bg-gradient-to-r from-emerald-700 via-emerald-500 to-teal-600"}`} />
 
       <div className="p-4 flex flex-col gap-3">
-        {/* Header Row */}
+        {/* Header */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <h3 className="text-white font-bold text-base truncate">{table.name}</h3>
             <p className="text-xs text-gray-500 mt-0.5">9 Card Table</p>
           </div>
-          {/* Lock badge */}
+          {/* Show locked badge (auto-locked when full OR manually locked) */}
           {table.locked && (
             <span className="text-xs bg-yellow-900/40 text-yellow-400 border border-yellow-800/50 rounded-full px-2 py-0.5 shrink-0">
-              🔒 Locked
+              {isFull ? "🔒 Full" : "🔒 Locked"}
             </span>
           )}
         </div>
 
-        {/* Stats Row */}
+        {/* Stats */}
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-[#111f16] rounded-xl p-2.5 text-center">
             <p className="text-xs text-gray-500 mb-0.5">Boot</p>
@@ -259,7 +256,7 @@ function TableCard({
                   : "bg-gray-800 text-gray-600 cursor-not-allowed"
               }`}
             >
-              {isFull ? "Full" : isInGame ? "In Game" : table.locked ? "Locked" : isDisabled ? "Disabled" : "Join Table"}
+              {joinLabel()}
             </button>
           )}
         </div>
@@ -299,8 +296,7 @@ function TableCard({
 // ─── Main Lobby ──────────────────────────────────
 export default function NineCardGameLobby() {
   const navigate = useNavigate();
-  const { user, isAdmin } =  useAuth();
-  console.log("isAdmin:", isAdmin, "uid:", user?.uid);
+  const { user, isAdmin } = useAuth();
   const [tables, setTables] = useState<NineCardTable[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -321,7 +317,6 @@ export default function NineCardGameLobby() {
     const table = tables.find(t => t.id === tableId);
     if (!table) return;
 
-    // Already in table → navigate directly
     if (table.players[user.uid]) {
       navigate(`/games/nine-card/${tableId}`);
       return;
@@ -370,17 +365,12 @@ export default function NineCardGameLobby() {
       <div className="sticky top-0 z-30 bg-[#070d09]/95 backdrop-blur border-b border-emerald-900/30">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-emerald-700 rounded-lg flex items-center justify-center text-lg">
-              🃏
-            </div>
+            <div className="w-8 h-8 bg-emerald-700 rounded-lg flex items-center justify-center text-lg">🃏</div>
             <div>
               <h1 className="text-base font-bold text-white leading-none">9 Card Table</h1>
-              <p className="text-[10px] text-gray-500 leading-none mt-0.5">
-                {openCount} open · {liveCount} live
-              </p>
+              <p className="text-[10px] text-gray-500 leading-none mt-0.5">{openCount} open · {liveCount} live</p>
             </div>
           </div>
-
           {isAdmin && (
             <button
               onClick={() => setShowCreate(true)}
@@ -393,7 +383,6 @@ export default function NineCardGameLobby() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 py-5">
-        {/* Error */}
         {error && (
           <div className="mb-4 bg-red-900/20 border border-red-800/50 rounded-xl px-4 py-3 flex items-center justify-between">
             <p className="text-red-400 text-sm">{error}</p>
@@ -431,10 +420,7 @@ export default function NineCardGameLobby() {
               {filter === "all" ? "No tables yet." : `No ${filter} tables.`}
             </p>
             {isAdmin && filter === "all" && (
-              <button
-                onClick={() => setShowCreate(true)}
-                className="text-emerald-400 text-sm hover:text-emerald-300 underline"
-              >
+              <button onClick={() => setShowCreate(true)} className="text-emerald-400 text-sm hover:text-emerald-300 underline">
                 Create the first table
               </button>
             )}
@@ -476,12 +462,8 @@ export default function NineCardGameLobby() {
         </div>
       </div>
 
-      {/* Create Modal */}
       {showCreate && user && (
-        <CreateTableModal
-          adminUid={user.uid}
-          onClose={() => setShowCreate(false)}
-        />
+        <CreateTableModal adminUid={user.uid} onClose={() => setShowCreate(false)} />
       )}
     </div>
   );
