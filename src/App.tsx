@@ -30,7 +30,7 @@ import { TransactionHistory } from './pages/TransactionHistory';
 import { Referral } from './pages/Referral';
 import { Profile } from './pages/Profile';
 import { Notifications } from './pages/Notifications';
-import { AdminDashboard } from './pages/AdminDashboard';
+import { AdminDashboard } from './admin/AdminDashboard';
 import { Matchmaking } from './pages/Matchmaking';
 import { GameRoom } from './pages/GameRoom';
 import { DiceGame } from './pages/games/DiceGame';
