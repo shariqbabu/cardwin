@@ -5,6 +5,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute, AdminRoute, PublicRoute } from './components/ProtectedRoute';
 import { MainLayout } from './components/Layout/MainLayout';
+import { AdminApp } from './admin/AdminApp';
 
 import DragonTigerPage from './pages/games/DragonTiger';
 import AndarBaharPage from './pages/games/AndarBahar';
@@ -76,6 +77,8 @@ export default function App() {
                 <Route path="/games/DragonTiger" element={<DragonTigerPage />} />
                 <Route path="/games/ludo" element={<LudoLobby />} />
                 <Route path="/games/ninecard" element={<NineCardGameLobby />} />
+                <Route path="/admin" element={<AdminApp />} />
+                <Route path="/admin/*" element={<AdminApp />} />
                 
 
                 
