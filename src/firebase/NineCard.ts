@@ -840,15 +840,17 @@ export async function leaveTable(tableId: string, uid: string): Promise<void> {
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(tableRef(tableId));
     if (!snap.exists()) return;
-
     const table = snap.data() as NineCardTable;
     if (!table.players[uid]) return;
 
     const updatedPlayers = { ...table.players };
     const updatedOrder = table.playerOrder.filter((id) => id !== uid);
 
-    // Active game: opponent wins ONLY pot amount
-    if ((table.status === "playing" || table.status === "booting") && updatedOrder.length > 0) {
+    // ── Active game: opponent wins pot ──
+    if (
+      (table.status === "playing" || table.status === "booting") &&
+      updatedOrder.length > 0
+    ) {
       const winnerUid = updatedOrder[0];
       const payoutAmount = Number(table.pot || 0);
 
@@ -860,6 +862,7 @@ export async function leaveTable(tableId: string, uid: string): Promise<void> {
       const txLogRef = doc(collection(db, "transactions"));
       const addition = computeWalletAddition(winnerWallet, payoutAmount);
 
+      // Remove leaving player completely
       delete updatedPlayers[uid];
 
       const historyEntry: RoundHistory = {
@@ -877,7 +880,6 @@ export async function leaveTable(tableId: string, uid: string): Promise<void> {
           winningBalance: addition.newWinning,
           updatedAt: serverTimestamp(),
         });
-
         tx.set(txLogRef, {
           uid: winnerUid,
           type: "GAME_WIN",
@@ -905,19 +907,50 @@ export async function leaveTable(tableId: string, uid: string): Promise<void> {
         lastRaiseAmount: 0,
         updatedAt: serverTimestamp(),
       });
-
       return;
     }
 
-    // Not active game: remove only
+    // ── Dono players chale gaye ya game finish/waiting ──
     delete updatedPlayers[uid];
 
+    // ✅ Agar koi bhi player nahi bacha — table poora reset karo
+    if (updatedOrder.length === 0) {
+      tx.update(tableRef(tableId), {
+        players: {},
+        playerOrder: [],
+        pot: 0,                    // ✅ pot clear
+        currentCallAmount: table.bootAmount,
+        currentTurn: null,
+        deck: [],
+        deckIndex: 0,
+        winnerId: null,            // ✅ winner clear
+        winnerReason: null,        // ✅ reason clear
+        isDraw: false,
+        lastRaiseBy: null,
+        lastRaiseAmount: 0,
+        locked: false,
+        status: "waiting",         // ✅ back to waiting
+        updatedAt: serverTimestamp(),
+      });
+      return;
+    }
+
+    // ── Ek player bacha, game waiting state me ──
     tx.update(tableRef(tableId), {
       players: updatedPlayers,
       playerOrder: updatedOrder,
+      pot: 0,                      // ✅ pot clear
+      currentCallAmount: table.bootAmount,
+      currentTurn: null,
+      deck: [],
+      deckIndex: 0,
+      winnerId: null,              // ✅ winner clear
+      winnerReason: null,
+      isDraw: false,
+      lastRaiseBy: null,
+      lastRaiseAmount: 0,
       locked: false,
-      currentTurn: table.currentTurn === uid ? null : table.currentTurn,
-      status: updatedOrder.length === 0 ? "waiting" : table.status,
+      status: "waiting",           // ✅ reset to waiting
       updatedAt: serverTimestamp(),
     });
   });
