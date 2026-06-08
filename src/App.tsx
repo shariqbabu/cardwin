@@ -5,7 +5,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute, AdminRoute, PublicRoute } from './components/ProtectedRoute';
 import { MainLayout } from './components/Layout/MainLayout';
-import { AdminApp } from './admin/AdminApp';
+
 
 import DragonTigerPage from './pages/games/DragonTiger';
 import AndarBaharPage from './pages/games/AndarBahar';
@@ -30,7 +30,6 @@ import { TransactionHistory } from './pages/TransactionHistory';
 import { Referral } from './pages/Referral';
 import { Profile } from './pages/Profile';
 import { Notifications } from './pages/Notifications';
-import { AdminDashboard } from './admin/AdminDashboard';
 import { Matchmaking } from './pages/Matchmaking';
 import { GameRoom } from './pages/GameRoom';
 import { DiceGame } from './pages/games/DiceGame';
@@ -78,24 +77,14 @@ export default function App() {
                 <Route path="/games/color-prediction" element={<ColorPrediction />} />
                 <Route path="/games/DragonTiger" element={<DragonTigerPage />} />
                 <Route path="/games/ludo" element={<LudoLobby />} />
-                <Route path="/games/ninecard" element={<NineCardGameLobby />} />
-                
-                
-
-                
-                {/* Admin routes */}
-                <Route element={<AdminRoute />}>
-                  <Route path="/admin" element={<AdminDashboard />} />
-                </Route>
-              </Route>
+                <Route path="/games/ninecard" element={<NineCardGameLobby />} 
+             </Route>
 
               {/* Game pages — WITHOUT MainLayout (no Header/Sidebar) */}
               <Route path="/game-room/:roomId" element={<GameRoom />} />
               <Route path="/games/poker/:tableId" element={<PokerGamePage />} />
               <Route path="/games/ludo/:tableId" element={<LudoGame />} />
               <Route path="/games/nine-card/:tableId" element={<NineCardGame />} />
-              <Route path="/admin" element={<AdminApp />} />
-              <Route path="/admin/*" element={<AdminApp />} />
             </Route>
 
             {/* Default redirects */}
