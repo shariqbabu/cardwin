@@ -6,7 +6,6 @@ import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute, PublicRoute } from './components/ProtectedRoute';
 import { MainLayout } from './components/Layout/MainLayout';
 
-
 import DragonTigerPage from './pages/games/DragonTiger';
 import AndarBaharPage from './pages/games/AndarBahar';
 import PokerGamePage from './pages/games/PokerGame';
@@ -16,7 +15,6 @@ import LudoLobby from './pages/games/LudoLobby';
 import LudoGame from './pages/games/LudoGame';
 import NineCardGame from './pages/games/NineCardGame';
 import NineCardGameLobby from './pages/games/NineCardGameLobby';
-
 
 // Pages
 import { Login } from './pages/Login';
@@ -49,47 +47,48 @@ export default function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            {/* Public routes */}
+
+            {/* ── Public routes ── */}
             <Route element={<PublicRoute />}>
-              <Route path="/login" element={<Login />} />
+              <Route path="/login"  element={<Login />} />
               <Route path="/signup" element={<Signup />} />
-              <Route path="/admin" element={<AdminApp />} />
-              <Route path="/admin/*" element={<AdminApp />} />
             </Route>
 
-            {/* Protected routes — WITH MainLayout (Header + Sidebar) */}
+            {/* ── Protected routes WITH MainLayout (Header + Sidebar) ── */}
             <Route element={<ProtectedRoute />}>
-              <Route element={<MainLayout />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/wallet" element={<Wallet />} />
-                <Route path="/add-money" element={<AddMoney />} />
-                <Route path="/withdrawal" element={<Withdrawal />} />
-                <Route path="/withdrawal-history" element={<WithdrawalHistory />} />
-                <Route path="/transactions" element={<TransactionHistory />} />
-                <Route path="/referral" element={<Referral />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/notifications" element={<Notifications />} />
-                <Route path="/matchmaking" element={<Matchmaking />} />
-                <Route path="/game-room/:roomId" element={<GameRoom />} />
-                <Route path="/games/poker" element={<PokerLobbyPage />} />
-                <Route path="/games/andar-bahar" element={<AndarBaharPage />} />
-                <Route path="/games/dice" element={<DiceGame />} />
-                <Route path="/games/color-prediction" element={<ColorPrediction />} />
-                <Route path="/games/DragonTiger" element={<DragonTigerPage />} />
-                <Route path="/games/ludo" element={<LudoLobby />} />
-                <Route path="/games/ninecard" element={<NineCardGameLobby />} 
-             
 
-              {/* Game pages — WITHOUT MainLayout (no Header/Sidebar) */}
-              <Route path="/game-room/:roomId" element={<GameRoom />} />
-              <Route path="/games/poker/:tableId" element={<PokerGamePage />} />
-              <Route path="/games/ludo/:tableId" element={<LudoGame />} />
+              <Route element={<MainLayout />}>
+                <Route path="/dashboard"          element={<Dashboard />} />
+                <Route path="/wallet"             element={<Wallet />} />
+                <Route path="/add-money"          element={<AddMoney />} />
+                <Route path="/withdrawal"         element={<Withdrawal />} />
+                <Route path="/withdrawal-history" element={<WithdrawalHistory />} />
+                <Route path="/transactions"       element={<TransactionHistory />} />
+                <Route path="/referral"           element={<Referral />} />
+                <Route path="/profile"            element={<Profile />} />
+                <Route path="/notifications"      element={<Notifications />} />
+                <Route path="/matchmaking"        element={<Matchmaking />} />
+                <Route path="/games/poker"            element={<PokerLobbyPage />} />
+                <Route path="/games/andar-bahar"      element={<AndarBaharPage />} />
+                <Route path="/games/dice"             element={<DiceGame />} />
+                <Route path="/games/color-prediction" element={<ColorPrediction />} />
+                <Route path="/games/DragonTiger"      element={<DragonTigerPage />} />
+                <Route path="/games/ludo"             element={<LudoLobby />} />
+                <Route path="/games/ninecard"         element={<NineCardGameLobby />} />
+              </Route>
+
+              {/* ── Game pages WITHOUT MainLayout (no Header/Sidebar) ── */}
+              <Route path="/game-room/:roomId"        element={<GameRoom />} />
+              <Route path="/games/poker/:tableId"     element={<PokerGamePage />} />
+              <Route path="/games/ludo/:tableId"      element={<LudoGame />} />
               <Route path="/games/nine-card/:tableId" element={<NineCardGame />} />
+
             </Route>
 
-            {/* Default redirects */}
+            {/* ── Default redirects ── */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
+
           </Routes>
         </BrowserRouter>
 
