@@ -54,6 +54,8 @@ export default function App() {
             <Route element={<PublicRoute />}>
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
+              <Route path="/admin" element={<AdminApp />} />
+              <Route path="/admin/*" element={<AdminApp />} />
             </Route>
 
             {/* Protected routes — WITH MainLayout (Header + Sidebar) */}
