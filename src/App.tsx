@@ -78,7 +78,7 @@ export default function App() {
                 <Route path="/games/DragonTiger" element={<DragonTigerPage />} />
                 <Route path="/games/ludo" element={<LudoLobby />} />
                 <Route path="/games/ninecard" element={<NineCardGameLobby />} 
-             </Route>
+             
 
               {/* Game pages — WITHOUT MainLayout (no Header/Sidebar) */}
               <Route path="/game-room/:roomId" element={<GameRoom />} />
