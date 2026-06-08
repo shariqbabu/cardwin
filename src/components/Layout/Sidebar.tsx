@@ -11,48 +11,53 @@ import {
   Users,
   User,
   Bell,
-  Shield,
   Dice5,
   Spade,
   Palette,
   X,
   ChevronRight,
-  Trophy, Dice6,
-  LogOut, Gamepad2, Swords, Diamond,
+  Trophy,
+  Dice6,
+  LogOut,
+  Gamepad2,
+  Swords,
+  Diamond,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { logOut } from '../../firebase/auth';
 import { useAppStore } from '../../store/useStore';
-import { formatCurrency } from '../../utils/helpers';
-import { calculateTotalBalance } from '../../utils/helpers';
+import { formatCurrency, calculateTotalBalance } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
+// ─── Nav Items ────────────────────────────────────────────
+// Sirf user-facing routes — admin ka koi link nahi
 const navItems = [
-  { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', color: 'text-blue-400' },
-  { path: '/wallet', icon: Wallet, label: 'Wallet', color: 'text-gold-400' },
-  { path: '/add-money', icon: PlusCircle, label: 'Add Money', color: 'text-green-400' },
-  { path: '/withdrawal', icon: ArrowUpCircle, label: 'Withdraw', color: 'text-orange-400' },
-  { path: '/withdrawal-history', icon: Clock, label: 'Withdrawal History', color: 'text-purple-400' },
-  { path: '/transactions', icon: History, label: 'Transactions', color: 'text-cyan-400' },
-  { path: '/referral', icon: Users, label: 'Referral', color: 'text-pink-400' },
-  { path: '/profile', icon: User, label: 'Profile', color: 'text-indigo-400' },
-  { path: '/notifications', icon: Bell, label: 'Notifications', color: 'text-yellow-400' },
+  { path: '/dashboard',           icon: LayoutDashboard, label: 'Dashboard',          color: 'text-blue-400' },
+  { path: '/wallet',              icon: Wallet,           label: 'Wallet',             color: 'text-yellow-400' },
+  { path: '/add-money',           icon: PlusCircle,       label: 'Add Money',          color: 'text-green-400' },
+  { path: '/withdrawal',          icon: ArrowUpCircle,    label: 'Withdraw',           color: 'text-orange-400' },
+  { path: '/withdrawal-history',  icon: Clock,            label: 'Withdrawal History', color: 'text-purple-400' },
+  { path: '/transactions',        icon: History,          label: 'Transactions',       color: 'text-cyan-400' },
+  { path: '/referral',            icon: Users,            label: 'Referral',           color: 'text-pink-400' },
+  { path: '/profile',             icon: User,             label: 'Profile',            color: 'text-indigo-400' },
+  { path: '/notifications',       icon: Bell,             label: 'Notifications',      color: 'text-yellow-400' },
 ];
 
 const gameItems = [
-  { path: '/games/color-prediction', icon: Palette, label: 'Color Prediction', color: 'text-red-400' },
-  { path: '/matchmaking', icon: Spade, label: 'Card Battle', color: 'text-blue-400' },
-  { path: '/games/dice', icon: Dice5, label: 'Dice Game', color: 'text-green-400' },
-  { path: '/games/poker', icon: Swords, label: 'Poker', color: 'text-green-400' },
-  { path: '/games/DragonTiger', icon: Gamepad2, label: 'Dragon Tiger', color: 'text-green-400' },
-  { path: '/games/andar-bahar', icon: Diamond, label: 'Andar Bahar', color: 'text-green-400' },
-  { path: '/games/ludo', icon: Dice6, label: 'Ludo', color: 'text-green-400' },
-  { path: '/games/ninecard', icon: Dice6, label: 'Ludo', color: 'text-green-400' },
+  { path: '/games/color-prediction', icon: Palette,   label: 'Color Prediction', color: 'text-red-400' },
+  { path: '/matchmaking',            icon: Spade,      label: 'Card Battle',      color: 'text-blue-400' },
+  { path: '/games/dice',             icon: Dice5,      label: 'Dice Game',        color: 'text-green-400' },
+  { path: '/games/poker',            icon: Swords,     label: 'Poker',            color: 'text-purple-400' },
+  { path: '/games/DragonTiger',      icon: Gamepad2,   label: 'Dragon Tiger',     color: 'text-orange-400' },
+  { path: '/games/andar-bahar',      icon: Diamond,    label: 'Andar Bahar',      color: 'text-pink-400' },
+  { path: '/games/ludo',             icon: Dice6,      label: 'Ludo',             color: 'text-cyan-400' },
+  { path: '/games/ninecard',         icon: Dice6,      label: 'Nine Card',        color: 'text-yellow-400' },
 ];
 
+// ─────────────────────────────────────────────────────────
 export const Sidebar: React.FC = () => {
   const location = useLocation();
-  const { user, wallet, isAdmin } = useAuth();
+  const { user, wallet } = useAuth();           // isAdmin bilkul nahi lena
   const { sidebarOpen, setSidebarOpen, unreadCount } = useAppStore();
 
   const handleLogout = async () => {
@@ -66,31 +71,47 @@ export const Sidebar: React.FC = () => {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const NavItem = ({ item }: { item: typeof navItems[0] }) => (
+  // ─── Single nav item ─────────────────────────────────
+  const NavItem = ({ item }: { item: (typeof navItems)[0] }) => (
     <Link
       to={item.path}
       onClick={() => setSidebarOpen(false)}
       className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${
         isActive(item.path)
-          ? 'bg-gold-500/20 border border-gold-500/30'
+          ? 'bg-yellow-500/15 border border-yellow-500/25'
           : 'hover:bg-white/5'
       }`}
     >
-      <item.icon className={`w-5 h-5 ${isActive(item.path) ? 'text-yellow-400' : item.color} flex-shrink-0`} />
-      <span className={`text-sm font-medium ${isActive(item.path) ? 'text-yellow-400' : 'text-gray-300'}`}>
+      <item.icon
+        className={`w-5 h-5 flex-shrink-0 ${
+          isActive(item.path) ? 'text-yellow-400' : item.color
+        }`}
+      />
+      <span
+        className={`text-sm font-medium ${
+          isActive(item.path) ? 'text-yellow-400' : 'text-gray-300'
+        }`}
+      >
         {item.label}
       </span>
+
+      {/* Notification badge */}
       {item.label === 'Notifications' && unreadCount > 0 && (
-        <span className="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+        <span className="ml-auto bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
           {unreadCount}
         </span>
       )}
-      {isActive(item.path) && <ChevronRight className="w-4 h-4 text-yellow-400 ml-auto" />}
+
+      {isActive(item.path) && (
+        <ChevronRight className="w-4 h-4 text-yellow-400 ml-auto" />
+      )}
     </Link>
   );
 
+  // ─── Sidebar content ─────────────────────────────────
   const sidebarContent = (
     <div className="flex flex-col h-full bg-[#0f0a1a] border-r border-white/10">
+
       {/* Logo */}
       <div className="flex items-center justify-between p-6 border-b border-white/10">
         <Link to="/dashboard" className="flex items-center gap-2">
@@ -128,46 +149,37 @@ export const Sidebar: React.FC = () => {
             {wallet && (
               <div className="bg-black/30 rounded-lg p-2 text-center">
                 <p className="text-xs text-gray-400">Total Balance</p>
-                <p className="text-lg font-bold text-yellow-400">{formatCurrency(
-  calculateTotalBalance(wallet)
-)}</p>
+                <p className="text-lg font-bold text-yellow-400">
+                  {formatCurrency(calculateTotalBalance(wallet))}
+                </p>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Navigation */}
-      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-        <p className="text-xs text-gray-600 uppercase tracking-wider px-4 mb-2">Main</p>
+      {/* Navigation links */}
+      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1 scrollbar-hide">
+
+        <p className="text-xs text-gray-600 uppercase tracking-wider px-4 mb-2">
+          Main
+        </p>
         {navItems.map(item => (
           <NavItem key={item.path} item={item} />
         ))}
 
-        <p className="text-xs text-gray-600 uppercase tracking-wider px-4 mb-2 mt-4">Games</p>
+        <p className="text-xs text-gray-600 uppercase tracking-wider px-4 mb-2 mt-6">
+          Games
+        </p>
         {gameItems.map(item => (
           <NavItem key={item.path} item={item} />
         ))}
 
-        {isAdmin && (
-          <>
-            <p className="text-xs text-gray-600 uppercase tracking-wider px-4 mb-2 mt-4">Admin</p>
-            <Link
-              to="/admin"
-              onClick={() => setSidebarOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                isActive('/admin')
-                  ? 'bg-red-500/20 border border-red-500/30'
-                  : 'hover:bg-white/5'
-              }`}
-            >
-              <Shield className={`w-5 h-5 ${isActive('/admin') ? 'text-red-400' : 'text-red-500'}`} />
-              <span className={`text-sm font-medium ${isActive('/admin') ? 'text-red-400' : 'text-gray-300'}`}>
-                Admin Panel
-              </span>
-            </Link>
-          </>
-        )}
+        {/* ── Admin link HATAAYA GAYA ──
+            Admin panel ka apna alag URL hai: /admin
+            Woh directly browser mein open hota hai.
+            Normal users ko yeh link dikhna nahi chahiye.
+        ── */}
       </div>
 
       {/* Logout */}
@@ -183,6 +195,7 @@ export const Sidebar: React.FC = () => {
     </div>
   );
 
+  // ─── Render ───────────────────────────────────────────
   return (
     <>
       {/* Desktop sidebar */}
@@ -190,7 +203,7 @@ export const Sidebar: React.FC = () => {
         {sidebarContent}
       </div>
 
-      {/* Mobile overlay */}
+      {/* Mobile overlay + drawer */}
       <AnimatePresence>
         {sidebarOpen && (
           <>
