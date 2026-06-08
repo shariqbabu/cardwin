@@ -59,7 +59,6 @@ export const signUp = async (
       photoURL: '',
       referralCode: userReferralCode,
       referredBy: referredBy || null,
-      isAdmin: false,
       isOnline: true,
       isBanned: false,
       role: 'user',
