@@ -7,7 +7,7 @@ import {
   checkAndAutoStart, markPokerDisconnect, markPokerReconnect,
   autoFoldTimedOutPlayer, PokerTable, PokerPlayer, SpectatorEntry,
 } from '../../firebase/poker';
-import { pokerLeave } from '../../utils/gameApi';
+import { pokerLeave, pokerSettle } from '../../utils/gameApi';
 import CardDisplay from '../../components/games/CardDisplay';
 import { formatCurrency } from '../../utils/helpers';
 import { Loader2, LogOut, Eye } from 'lucide-react';
