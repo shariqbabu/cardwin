@@ -1,56 +1,77 @@
 // api/_lib/verifyAuth.ts
 import { adminAuth } from './firebaseAdmin';
 
-export async function verifyToken(authHeader?: string): Promise<string> {
+// Token verify karo
+export async function verifyToken(
+  authHeader: string | undefined
+): Promise<string> {
   if (!authHeader?.startsWith('Bearer ')) {
-    throw new Error('No token provided');
+    throw new Error('Unauthorized');
   }
-  const token = authHeader.split('Bearer ')[1];
+  const token   = authHeader.split('Bearer ')[1];
   const decoded = await adminAuth.verifyIdToken(token);
   return decoded.uid;
 }
 
-// Wallet deduction helper (deposit → winning → referral → bonus)
-export function calculateDeduction(wallet: any, amount: number) {
-  const total =
-    (wallet.depositBalance || 0) +
-    (wallet.winningBalance || 0) +
-    (wallet.bonusBalance || 0) +
-    (wallet.referralBalance || 0);
+// Wallet deduction logic
+interface WalletData {
+  depositBalance:  number;
+  winningBalance:  number;
+  referralBalance: number;
+  bonusBalance:    number;
+}
 
+interface DeductionResult extends WalletData {
+  previousTotal: number;
+  newTotal:      number;
+}
+
+export function calculateDeduction(
+  wallet: WalletData,
+  amount: number
+): DeductionResult | null {
+  const {
+    depositBalance  = 0,
+    winningBalance  = 0,
+    referralBalance = 0,
+    bonusBalance    = 0,
+  } = wallet;
+
+  const total = depositBalance + winningBalance + referralBalance + bonusBalance;
   if (total < amount) return null;
 
   let remaining = amount;
-  let deposit = wallet.depositBalance || 0;
-  let winning = wallet.winningBalance || 0;
-  let referral = wallet.referralBalance || 0;
-  let bonus = wallet.bonusBalance || 0;
+  let newDeposit  = depositBalance;
+  let newWinning  = winningBalance;
+  let newReferral = referralBalance;
+  let newBonus    = bonusBalance;
 
-  const fromDeposit = Math.min(deposit, remaining);
-  deposit -= fromDeposit;
-  remaining -= fromDeposit;
+  // Priority: deposit → winning → referral → bonus
+  if (remaining > 0) {
+    const d = Math.min(remaining, newDeposit);
+    newDeposit -= d; remaining -= d;
+  }
+  if (remaining > 0) {
+    const d = Math.min(remaining, newWinning);
+    newWinning -= d; remaining -= d;
+  }
+  if (remaining > 0) {
+    const d = Math.min(remaining, newReferral);
+    newReferral -= d; remaining -= d;
+  }
+  if (remaining > 0) {
+    const d = Math.min(remaining, newBonus);
+    newBonus -= d; remaining -= d;
+  }
 
-  if (remaining > 0) {
-    const fromWinning = Math.min(winning, remaining);
-    winning -= fromWinning;
-    remaining -= fromWinning;
-  }
-  if (remaining > 0) {
-    const fromReferral = Math.min(referral, remaining);
-    referral -= fromReferral;
-    remaining -= fromReferral;
-  }
-  if (remaining > 0) {
-    bonus -= remaining;
-    remaining = 0;
-  }
+  if (remaining > 0) return null;
 
   return {
-    depositBalance: deposit,
-    winningBalance: winning,
-    referralBalance: referral,
-    bonusBalance: bonus,
-    previousTotal: total,
-    newTotal: total - amount,
+    depositBalance:  newDeposit,
+    winningBalance:  newWinning,
+    referralBalance: newReferral,
+    bonusBalance:    newBonus,
+    previousTotal:   total,
+    newTotal:        total - amount,
   };
 }
