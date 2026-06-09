@@ -25,8 +25,8 @@ async function callApi(endpoint: string, data: any) {
 export const pokerJoin = (tableId: string, name: string, avatar: string, buyIn: number) =>
   callApi('poker/join', { tableId, name, avatar, buyIn });
 
-export const pokerSettle = (tableId: string, winners: Array<{ uid: string; amount: number; handRank?: string }>) =>
-  callApi('poker/settle', { tableId, winners });
+export const pokerSettle = (tableId: string) =>
+  callApi('poker/settle', { tableId });
 
 export const pokerLeave = (tableId: string) =>
   callApi('poker/leave', { tableId });
