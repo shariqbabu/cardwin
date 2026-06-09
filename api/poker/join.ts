@@ -11,9 +11,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const uid = await verifyToken(req.headers.authorization);
     const { tableId, name, avatar, buyIn } = req.body;
 
-    if (!tableId || !buyIn || buyIn <= 0) {
-      return res.status(400).json({ error: 'Invalid data' });
-    }
+    if (!tableId) {
+  return res.status(400).json({ error: 'tableId required' });
+}
 
     const result = await adminDb.runTransaction(async (tx) => {
       const tableRef = adminDb.collection('pokerTables').doc(tableId);
