@@ -7,8 +7,8 @@ import {
   PokerTable,
   SpectatorEntry,
 } from '../../firebase/poker';
-import { pokerJoin } from '../utils/gameApi';
-import { formatCurrency, calculateUsableBalance } from '../utils/helpers';
+import { pokerJoin } from '../../utils/gameApi';
+import { formatCurrency, calculateUsableBalance } from '../../utils/helpers';
 import {
   Users, ChevronRight, Loader2, X, Lock,
   Clock, Spade, Shield, AlertCircle, Eye,
