@@ -1,0 +1,24 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Dependencies (Bohot badi hoti hai, upload nahi karni)
+node_modules/
+
+# Build files (Vite/React ki build files)
+dist/
+build/
+
+# Vercel files
+.vercel/
+
+# 🛑 SECRETS & ENV VARIABLES (SABSE ZAROORI) 🛑
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS generated files
+.DS_Store
