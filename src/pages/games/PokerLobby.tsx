@@ -6,7 +6,7 @@ import {
   subscribePokerTables,
   PokerTable,
   SpectatorEntry,
-} from '../firebase/poker';
+} from '../../firebase/poker';
 import { pokerJoin } from '../utils/gameApi';
 import { formatCurrency, calculateUsableBalance } from '../utils/helpers';
 import {
