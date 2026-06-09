@@ -672,27 +672,3 @@ export const autoFoldTimedOutPlayer = async (tableId: string): Promise<void> => 
   await pokerAction(tableId, uid, canCheck ? 'check' : 'fold');
 };
 
-    // =====================================================
-// AUTO FOLD TIMED OUT PLAYER
-// =====================================================
-export const autoFoldTimedOutPlayer = async (tableId: string): Promise<void> => {
-  const tableRef  = doc(db, POKER_COLLECTION, tableId);
-  const tableSnap = await getDoc(tableRef);
-  if (!tableSnap.exists()) return;
-  const table = tableSnap.data() as PokerTable;
-  if (!table.activePlayerUid || !table.turnExpiresAt) return;
-
-  const expiresAt =
-    table.turnExpiresAt instanceof Timestamp
-      ? table.turnExpiresAt.toMillis()
-      : Number(table.turnExpiresAt);
-
-  if (Date.now() < expiresAt) return;
-
-  const uid    = table.activePlayerUid;
-  const player = table.players.find((p) => p.uid === uid);
-  if (!player) return;
-
-  const canCheck = player.bet >= table.currentBet;
-  await pokerAction(tableId, uid, canCheck ? 'check' : 'fold');
-};
