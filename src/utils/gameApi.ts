@@ -1,24 +1,40 @@
 // src/utils/gameApi.ts
 import { auth } from '../firebase/config';
 
+// ✅ Fix - Token refresh + better errors
 async function callApi(endpoint: string, data: any) {
   const user = auth.currentUser;
   if (!user) throw new Error('Login required');
 
-  const token = await user.getIdToken();
+  try {
+    // forceRefresh: true → expired token auto refresh hoga
+    const token = await user.getIdToken(true);
 
-  const res = await fetch(`/api/${endpoint}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify(data),
-  });
+    const res = await fetch(`/api/${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
 
-  const result = await res.json();
-  if (!res.ok) throw new Error(result.error || 'Server error');
-  return result;
+    const result = await res.json();
+
+    if (res.status === 401) throw new Error('Session expired. Please login again.');
+    if (res.status === 403) throw new Error('Access denied.');
+    if (res.status === 429) throw new Error('Too many requests. Please wait.');
+    if (!res.ok) throw new Error(result.error || 'Server error');
+
+    return result;
+
+  } catch (error: any) {
+    // Network error
+    if (error.name === 'TypeError') {
+      throw new Error('Network error. Check your connection.');
+    }
+    throw error;
+  }
 }
 
 // ── POKER ──
