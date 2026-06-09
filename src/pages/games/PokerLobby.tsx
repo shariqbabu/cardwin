@@ -3,7 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
-  subscribePokerTables, PokerTable, SpectatorEntry,
+  subscribePokerTables,
+  PokerTable,
+  SpectatorEntry,
 } from '../../firebase/poker';
 import { pokerJoin } from '../../utils/gameApi';
 import { formatCurrency, calculateUsableBalance } from '../../utils/helpers';
