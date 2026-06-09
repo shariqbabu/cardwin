@@ -4,11 +4,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   subscribePokerTable, startPokerHand, pokerAction,
-  leavePokerTable, checkAndAutoStart,
-  markPokerDisconnect, markPokerReconnect,
-  autoFoldTimedOutPlayer,
-  PokerTable, PokerPlayer, SpectatorEntry,
-} from '../../firebase/games';
+  checkAndAutoStart, markPokerDisconnect, markPokerReconnect,
+  autoFoldTimedOutPlayer, PokerTable, PokerPlayer, SpectatorEntry,
+} from '../../firebase/poker';
+import { pokerLeave } from '../../utils/gameApi';
 import CardDisplay from '../../components/games/CardDisplay';
 import { formatCurrency } from '../../utils/helpers';
 import { Loader2, LogOut, Eye } from 'lucide-react';
