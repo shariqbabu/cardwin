@@ -1,15 +1,15 @@
 // src/pages/games/PokerGame.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import {
   subscribePokerTable, startPokerHand, pokerAction,
   checkAndAutoStart, markPokerDisconnect, markPokerReconnect,
   autoFoldTimedOutPlayer, PokerTable, PokerPlayer, SpectatorEntry,
-} from '../firebase/poker';
-import { pokerLeave, pokerSettle } from '../utils/gameApi';
+} from '../../firebase/poker';
+import { pokerLeave, pokerSettle } from '../../utils/gameApi';
 import CardDisplay from '../../components/games/CardDisplay';
-import { formatCurrency } from '../utils/helpers';
+import { formatCurrency } from '../../utils/helpers';
 import { Loader2, LogOut, Eye } from 'lucide-react';
 
 // ─── Seat positions as % of the WRAPPER ────────────────────────────────────
