@@ -11,6 +11,7 @@ import {
   doc,
   setDoc,
   getDoc,
+  collection,
   serverTimestamp,
   runTransaction,
 } from 'firebase/firestore';
@@ -18,23 +19,51 @@ import { auth, db } from './config';
 import { generateReferralCode } from '../utils/helpers';
 
 export const signUp = async (
-  email: string, password: string,
-  name: string, phone: string, referralCode?: string
+  email: string,
+  password: string,
+  name: string,
+  phone: string,
+  referralCode?: string
 ) => {
   const credential = await createUserWithEmailAndPassword(auth, email, password);
   const user = credential.user;
   await updateProfile(user, { displayName: name });
 
-  // ✅ Server API call — Admin SDK se likhega
+  // Generate referral code for new user
+  const userReferralCode = generateReferralCode();
+
+  // Resolve referredBy UID from referralCode (if provided)
+  let referredBy: string | null = null;
+  if (referralCode) {
+    const token = await user.getIdToken();
+    try {
+      const res = await fetch('/api/auth/resolve-referral', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ referralCode }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        referredBy = data.uid ?? null;
+      }
+    } catch (_e) {
+      // ignore referral resolution errors
+    }
+  }
+
+  // Register user via server API (Admin SDK write)
   const token = await user.getIdToken();
   await fetch('/api/auth/register', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}` },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify({ uid: user.uid, name, email, phone, referralCode }),
   });
-
-  return user;
 
   // Use transaction to create user + wallet atomically
   await runTransaction(db, async (tx) => {
@@ -85,7 +114,6 @@ export const signUp = async (
         }
 
         // Create referral record
-        const { collection } = await import('firebase/firestore');
         const referralRef = doc(collection(db, 'referrals'));
         tx.set(referralRef, {
           referrerId: referredBy,
@@ -104,15 +132,17 @@ export const signUp = async (
   return user;
 };
 
-  export const signIn = async (email: string, password: string) => {
+export const signIn = async (email: string, password: string) => {
   const credential = await signInWithEmailAndPassword(auth, email, password);
   const token = await credential.user.getIdToken();
 
-  // ✅ Online status server se update
+  // Update online status via server
   fetch('/api/auth/status', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}` },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify({ isOnline: true }),
   }).catch(() => {});
 
@@ -125,8 +155,10 @@ export const logOut = async () => {
       const token = await auth.currentUser.getIdToken();
       await fetch('/api/auth/status', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ isOnline: false }),
       });
     } catch (_e) {}
