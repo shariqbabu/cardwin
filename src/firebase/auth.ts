@@ -35,7 +35,6 @@ export const signUp = async (
   });
 
   return user;
-};
 
   // Use transaction to create user + wallet atomically
   await runTransaction(db, async (tx) => {
