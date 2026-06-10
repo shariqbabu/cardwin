@@ -183,7 +183,7 @@ export const addFunds = async (
 export const deductFunds = async (
   uid: string,
   amount: number,
-  txType = 'GAME_LOSS',
+  type = 'GAME_LOSS',
   description = 'Balance deduction'
 ) => {
   const currentUser = auth.currentUser;
@@ -192,21 +192,19 @@ export const deductFunds = async (
     throw new Error('Not authenticated');
   }
 
-  const token =
-    await currentUser.getIdToken();
+  const token = await currentUser.getIdToken();
 
   const response = await fetch(
     '/api/wallet/deduct',
     {
       method: 'POST',
       headers: {
-        'Content-Type':
-          'application/json',
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         amount,
-        txType,
+        type,
         description,
       }),
     }
