@@ -14,7 +14,11 @@ export const WithdrawalHistory: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!firebaseUser) return;
+  if (!firebaseUser) {
+    setWithdrawals([]);
+    setLoading(false);
+    return;
+  }
 
     const q = query(
       collection(db, 'withdrawals'),
