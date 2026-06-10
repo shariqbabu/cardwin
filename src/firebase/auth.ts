@@ -1,4 +1,4 @@
-```ts
+
 // src/firebase/auth.ts
 
 import {
@@ -147,4 +147,3 @@ export const onAuthChange = (
 ) => {
   return onAuthStateChanged(auth, callback);
 };
-```
