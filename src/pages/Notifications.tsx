@@ -4,6 +4,7 @@ import { Bell, CheckCheck, Loader2, Trophy, TrendingDown, TrendingUp, Gift, Aler
 import { useAuth } from '../context/AuthContext';
 import { subscribeNotifications, markNotificationRead } from '../firebase/games';
 import { formatDate } from '../utils/helpers';
+import { Notification } from '../types';
 import toast from 'react-hot-toast';
 
 const getNotifIcon = (type: string) => {
@@ -21,11 +22,16 @@ const getNotifIcon = (type: string) => {
 
 export const Notifications: React.FC = () => {
   const { firebaseUser } = useAuth();
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] =
+  useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!firebaseUser) return;
+  if (!firebaseUser) {
+    setNotifications([]);
+    setLoading(false);
+    return;
+  }
 
     const unsub = subscribeNotifications(firebaseUser.uid, (notifs) => {
       setNotifications(notifs);
