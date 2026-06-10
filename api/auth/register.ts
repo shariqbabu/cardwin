@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { adminDb, adminAuth } from '../_lib/firebaseAdmin';
+import { adminDb } from '../_lib/firebaseAdmin';
+import { setCorsHeaders } from '../_lib/verifyAuth';
 import { FieldValue } from 'firebase-admin/firestore';
 
 function generateReferralCode(uid: string): string {
@@ -7,6 +8,8 @@ function generateReferralCode(uid: string): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  setCorsHeaders(res);
+  if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST')
     return res.status(405).json({ error: 'Method not allowed' });
 
@@ -17,12 +20,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     if (!uid || !name || !email || !phone)
-      return res.status(400).json({ error: 'Missing fields' });
+      return res.status(400).json({ error: 'Missing required fields: uid, name, email, phone' });
+
+    // Check if user already registered (idempotent)
+    const existing = await adminDb.collection('users').doc(uid).get();
+    if (existing.exists) {
+      return res.status(200).json({ success: true, alreadyExists: true });
+    }
 
     const userReferralCode = generateReferralCode(uid);
     let referredBy: string | undefined;
 
-    // Check referral code
     if (referralCode) {
       const snap = await adminDb.collection('users')
         .where('referralCode', '==', referralCode)
@@ -39,14 +47,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       tx.set(userRef, {
         uid, name, email, phone,
-        photoURL: '',
+        photoURL:     '',
         referralCode: userReferralCode,
-        referredBy: referredBy || null,
-        isOnline: true,
-        isBanned: false,
-        role: 'user',
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
+        referredBy:   referredBy || null,
+        isOnline:     true,
+        isBanned:     false,
+        role:         'user',
+        createdAt:    FieldValue.serverTimestamp(),
+        updatedAt:    FieldValue.serverTimestamp(),
       });
 
       tx.set(walletRef, {
@@ -55,33 +63,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         depositBalance:  0,
         bonusBalance:    referredBy ? 50 : 0,
         referralBalance: 0,
-        updatedAt: FieldValue.serverTimestamp(),
+        updatedAt:       FieldValue.serverTimestamp(),
       });
     });
 
-    // Referral reward
+    // Referral reward (non-blocking — don't fail registration if this errors)
     if (referredBy) {
-      try {
-        await adminDb.runTransaction(async (tx) => {
-          const referrerWalletRef  = adminDb.collection('wallets').doc(referredBy!);
-          const referrerWalletSnap = await tx.get(referrerWalletRef);
-          if (referrerWalletSnap.exists) {
-            tx.update(referrerWalletRef, {
-              referralBalance: FieldValue.increment(50),
-              updatedAt: FieldValue.serverTimestamp(),
-            });
-          }
-          const referralRef = adminDb.collection('referrals').doc();
-          tx.set(referralRef, {
-            referrerId: referredBy,
-            referredId: uid,
-            referredName: name,
-            referredEmail: email,
-            bonusAmount: 50,
-            createdAt: FieldValue.serverTimestamp(),
+      adminDb.runTransaction(async (tx) => {
+        const referrerWalletRef  = adminDb.collection('wallets').doc(referredBy!);
+        const referrerWalletSnap = await tx.get(referrerWalletRef);
+        if (referrerWalletSnap.exists) {
+          tx.update(referrerWalletRef, {
+            referralBalance: FieldValue.increment(50),
+            updatedAt:       FieldValue.serverTimestamp(),
           });
+        }
+        const referralRef = adminDb.collection('referrals').doc();
+        tx.set(referralRef, {
+          referrerId:    referredBy,
+          referredId:    uid,
+          referredName:  name,
+          referredEmail: email,
+          bonusAmount:   50,
+          createdAt:     FieldValue.serverTimestamp(),
         });
-      } catch (_e) {}
+      }).catch((err) => console.error('Referral reward error (non-fatal):', err));
     }
 
     return res.status(200).json({ success: true });
