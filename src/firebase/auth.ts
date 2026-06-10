@@ -1,3 +1,6 @@
+```ts
+// src/firebase/auth.ts
+
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -29,7 +32,7 @@ export const signUp = async (
     displayName: name,
   });
 
-  const token = await user.getIdToken();
+  const token = await user.getIdToken(true);
 
   const response = await fetch('/api/auth/register', {
     method: 'POST',
@@ -64,7 +67,7 @@ export const signIn = async (
   );
 
   try {
-    const token = await credential.user.getIdToken();
+    const token = await credential.user.getIdToken(true);
 
     await fetch('/api/auth/status', {
       method: 'POST',
@@ -86,7 +89,7 @@ export const signIn = async (
 export const logOut = async () => {
   try {
     if (auth.currentUser) {
-      const token = await auth.currentUser.getIdToken();
+      const token = await auth.currentUser.getIdToken(true);
 
       await fetch('/api/auth/status', {
         method: 'POST',
@@ -113,15 +116,16 @@ export const resetPassword = async (
 };
 
 export const getProfile = async () => {
-  const user = auth.currentUser;
+  const currentUser = auth.currentUser;
 
-  if (!user) {
+  if (!currentUser) {
     return null;
   }
 
-  const token = await user.getIdToken();
+  const token = await currentUser.getIdToken(true);
 
   const response = await fetch('/api/auth/getProfile', {
+    method: 'GET',
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -130,7 +134,9 @@ export const getProfile = async () => {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.error || 'Failed to fetch profile');
+    throw new Error(
+      data.error || 'Failed to fetch profile'
+    );
   }
 
   return data;
@@ -141,3 +147,4 @@ export const onAuthChange = (
 ) => {
   return onAuthStateChanged(auth, callback);
 };
+```
