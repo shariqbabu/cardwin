@@ -11,19 +11,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const uid = await verifyToken(req.headers.authorization);
-    const { name, phone, photoURL } = req.body as {
-      name?: string; phone?: string; photoURL?: string;
-    };
+    const { isOnline } = req.body as { isOnline: boolean };
 
-    const updates: Record<string, any> = { updatedAt: FieldValue.serverTimestamp() };
-    if (name     !== undefined) updates.name     = name;
-    if (phone    !== undefined) updates.phone    = phone;
-    if (photoURL !== undefined) updates.photoURL = photoURL;
+    if (typeof isOnline !== 'boolean')
+      return res.status(400).json({ error: 'isOnline (boolean) required' });
 
-    await adminDb.collection('users').doc(uid).update(updates);
+    await adminDb.collection('users').doc(uid).update({
+      isOnline,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
     return res.status(200).json({ success: true });
   } catch (error: any) {
-    const status = error.message.startsWith('Unauthorized') ? 401 : 400;
+    const status = error.message === 'Unauthorized' ? 401 : 400;
     return res.status(status).json({ error: error.message });
   }
 }
