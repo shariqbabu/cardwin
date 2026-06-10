@@ -32,51 +32,37 @@ export const Profile: React.FC = () => {
     defaultValues: { name: user?.name || '', phone: user?.phone || '' },
   });
 
-  const handleAvatarUpload = async (file: File) => {
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('upload_preset', UPLOAD_PRESET);
-      formData.append('folder', 'avatars');
+  const getToken = async () => {
+  const { getIdToken } = await import('firebase/auth');
+  return getIdToken(firebaseUser!);
+};
 
-      const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-        { method: 'POST', body: formData }
-      );
-      const data = await res.json();
-      if (data.secure_url && firebaseUser) {
-        await updateProfile(firebaseUser, { photoURL: data.secure_url });
-        await updateDoc(doc(db, 'users', firebaseUser.uid), {
-          photoURL: data.secure_url,
-          updatedAt: serverTimestamp(),
-        });
-        toast.success('Avatar updated!');
-      }
-    } catch {
-      toast.error('Upload failed');
-    } finally {
-      setUploading(false);
-    }
-  };
+const onSubmit = async (data: FormData) => {
+  if (!firebaseUser) return;
+  setSaving(true);
+  try {
+    await updateProfile(firebaseUser, { displayName: data.name });
+    const token = await getToken();
+    await fetch('/api/user/updateProfile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name: data.name, phone: data.phone }),
+    });
+    toast.success('Profile updated!');
+  } catch {
+    toast.error('Update failed');
+  } finally { setSaving(false); }
+};
 
-  const onSubmit = async (data: FormData) => {
-    if (!firebaseUser) return;
-    setSaving(true);
-    try {
-      await updateProfile(firebaseUser, { displayName: data.name });
-      await updateDoc(doc(db, 'users', firebaseUser.uid), {
-        name: data.name,
-        phone: data.phone,
-        updatedAt: serverTimestamp(),
-      });
-      toast.success('Profile updated!');
-    } catch {
-      toast.error('Update failed');
-    } finally {
-      setSaving(false);
-    }
-  };
+// Avatar upload mein bhi — Cloudinary upload ke baad:
+const token = await getToken();
+await fetch('/api/user/updateProfile', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}` },
+  body: JSON.stringify({ photoURL: data.secure_url }),
+});
 
   const handleLogout = async () => {
     await logOut();
