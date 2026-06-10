@@ -34,8 +34,8 @@ export type TransactionType =
   | 'BONUS'
   | 'REFERRAL'
   | 'REFUND'
-  | 'DEDUCATION_WIN'
-  | 'DEDUCATION_DEPOSIT';
+  | 'DEDUCTION_DEPOSIT'
+  | 'DEDUCTION_WIN';
 
 export type TransactionStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
