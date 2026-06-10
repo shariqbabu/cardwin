@@ -1,16 +1,23 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+// src/context/AuthContext.tsx
+
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from 'react';
+
 import { User as FirebaseUser } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase/config';
-import { onAuthChange } from '../firebase/auth';
 import { User, Wallet } from '../types';
+import { onAuthChange, getProfile } from '../firebase/auth';
 
 interface AuthContextType {
   firebaseUser: FirebaseUser | null;
   user: User | null;
   wallet: Wallet | null;
   loading: boolean;
-  isAdmin: boolean;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -18,90 +25,73 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   wallet: null,
   loading: true,
-  isAdmin: false,
+  refreshProfile: async () => {},
 });
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [wallet, setWallet] = useState<Wallet | null>(null);
-  const [loading, setLoading] = useState(true);
+export const AuthProvider: React.FC<{
+  children: ReactNode;
+}> = ({ children }) => {
+  const [firebaseUser, setFirebaseUser] =
+    useState<FirebaseUser | null>(null);
 
-  // Refs to store unsubscribe functions
-  const unsubUserRef = useRef<(() => void) | null>(null);
-  const unsubWalletRef = useRef<(() => void) | null>(null);
+  const [user, setUser] =
+    useState<User | null>(null);
 
-  // Cleanup function — snapshots band karo
-  const cleanupSnapshots = () => {
-    if (unsubUserRef.current) {
-      unsubUserRef.current();
-      unsubUserRef.current = null;
-    }
-    if (unsubWalletRef.current) {
-      unsubWalletRef.current();
-      unsubWalletRef.current = null;
-    }
-  };
+  const [wallet, setWallet] =
+    useState<Wallet | null>(null);
 
-  useEffect(() => {
-    const unsubAuth = onAuthChange((fbUser) => {
+  const [loading, setLoading] =
+    useState(true);
 
-      // Pehle purane snapshots band karo
-      cleanupSnapshots();
+  const loadProfile = async () => {
+    try {
+      const data = await getProfile();
 
-      if (!fbUser) {
-        // User logged out / deleted
-        setFirebaseUser(null);
+      if (!data) {
         setUser(null);
         setWallet(null);
-        setLoading(false);
         return;
       }
 
-      // User logged in — state set karo
-      setFirebaseUser(fbUser);
+      setUser(data.user ?? null);
+      setWallet(data.wallet ?? null);
+    } catch (error) {
+      console.error('Profile load error:', error);
 
-      // Users snapshot
-      unsubUserRef.current = onSnapshot(
-        doc(db, 'users', fbUser.uid),
-        (snap) => {
-          if (snap.exists()) {
-            setUser({ id: snap.id, ...snap.data() } as any);
-          } else {
-            setUser(null);
-          }
+      setUser(null);
+      setWallet(null);
+    }
+  };
+
+  const refreshProfile = async () => {
+    await loadProfile();
+  };
+
+  useEffect(() => {
+    const unsubscribe = onAuthChange(
+      async (fbUser) => {
+        setLoading(true);
+
+        if (!fbUser) {
+          setFirebaseUser(null);
+          setUser(null);
+          setWallet(null);
           setLoading(false);
-        },
-        (error) => {
-          // Permission denied quietly handle karo
-          console.warn('User snapshot error:', error.code);
+          return;
+        }
+
+        setFirebaseUser(fbUser);
+
+        try {
+          await loadProfile();
+        } finally {
           setLoading(false);
         }
-      );
+      }
+    );
 
-      // Wallet snapshot
-      unsubWalletRef.current = onSnapshot(
-        doc(db, 'wallets', fbUser.uid),
-        (snap) => {
-          if (snap.exists()) {
-            setWallet(snap.data() as Wallet);
-          } else {
-            setWallet(null);
-          }
-        },
-        (error) => {
-          // Permission denied quietly handle karo
-          console.warn('Wallet snapshot error:', error.code);
-        }
-      );
-    });
-
-    // Component unmount pe sab cleanup
-    return () => {
-      unsubAuth();
-      cleanupSnapshots();
-    };
-  }, []); // Sirf ek baar run ho
+    return () => unsubscribe();
+  }, []);
 
   return (
     <AuthContext.Provider
@@ -110,7 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         wallet,
         loading,
-        isAdmin: user?.isAdmin || false,
+        refreshProfile,
       }}
     >
       {children}
