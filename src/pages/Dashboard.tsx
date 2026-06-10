@@ -7,7 +7,7 @@ import {
   Zap, Crown, Gamepad2, Swords, Diamond,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { formatCurrency, calculateTotalBalance, } from '../utils/helpers';
+import { formatCurrency } from '../utils/helpers';
 import { useAppStore } from '../store/useStore';
 
 const gameCards = [
@@ -83,7 +83,7 @@ const quickActions = [
 ];
 
 export const Dashboard: React.FC = () => {
-  const { user, wallet } = useAuth();
+  const { user, wallet, loading } = useAuth();
   const { unreadCount } = useAppStore();
 
   const container = {
@@ -95,6 +95,13 @@ export const Dashboard: React.FC = () => {
     hidden: { opacity: 0, y: 20 },
     show: { opacity: 1, y: 0 },
   };
+  if (loading) {
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="w-10 h-10 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6 max-w-4xl mx-auto">
@@ -106,7 +113,7 @@ export const Dashboard: React.FC = () => {
             <Crown className="w-5 h-5 text-yellow-400" />
             <span className="text-yellow-400 text-sm font-medium">Welcome back</span>
           </div>
-          <h2 className="text-2xl font-bold text-white">{user?.name || 'Player'}!</h2>
+          <h2 className="text-2xl font-bold text-white">{user?.name ?? 'Player'}!</h2>
           <p className="text-gray-400 mt-1 text-sm">Ready to play? Your balance is waiting.</p>
         </div>
       </motion.div>
@@ -124,15 +131,15 @@ export const Dashboard: React.FC = () => {
         </div>
 
         <p className="text-4xl font-bold text-white mb-4">
-          {formatCurrency(calculateTotalBalance(wallet))}
+          {formatCurrency(wallet?.totalBalance || 0)}
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { label: 'Winning', value: wallet?.winningBalance || 0, icon: Trophy, color: 'text-yellow-400' },
-            { label: 'Deposit', value: wallet?.depositBalance || 0, icon: TrendingUp, color: 'text-blue-400' },
-            { label: 'Bonus', value: wallet?.bonusBalance || 0, icon: Star, color: 'text-purple-400' },
-            { label: 'Referral', value: wallet?.referralBalance || 0, icon: Users, color: 'text-pink-400' },
+            { label: 'Winning', value: wallet?.winningBalance ?? 0, icon: Trophy, color: 'text-yellow-400' },
+            { label: 'Deposit', value: wallet?.depositBalance ?? 0, icon: TrendingUp, color: 'text-blue-400' },
+            { label: 'Bonus', value: wallet?.bonusBalance ?? 0, icon: Star, color: 'text-purple-400' },
+            { label: 'Referral', value: wallet?.referralBalance ?? 0, icon: Users, color: 'text-pink-400' },
           ].map(({ label, value, icon: Icon, color }) => (
             <div key={label} className="bg-white/5 rounded-xl p-3 text-center">
               <Icon className={`w-4 h-4 ${color} mx-auto mb-1`} />
