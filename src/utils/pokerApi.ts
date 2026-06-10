@@ -7,10 +7,11 @@ const BASE = '/api/poker';
 async function authHeader(): Promise<Record<string, string>> {
   const user = auth.currentUser;
   if (!user) throw new Error('Not logged in');
-  const token = await getIdToken(user, /* forceRefresh */ false);
+  // forceRefresh: true prevents 401s from stale tokens
+  const token = await getIdToken(user, true);
   return {
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
+    Authorization:  `Bearer ${token}`,
   };
 }
 
@@ -24,8 +25,6 @@ async function post<T = any>(path: string, body: object): Promise<T> {
   if (!res.ok) throw new Error(data.error || 'Request failed');
   return data as T;
 }
-
-// ── Poker actions ─────────────────────────────────────────────────────────────
 
 export const apiPokerStart = (tableId: string) =>
   post('/start', { tableId });
