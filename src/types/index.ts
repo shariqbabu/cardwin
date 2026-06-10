@@ -23,6 +23,7 @@ export interface Wallet {
   depositBalance: number;
   bonusBalance: number;
   referralBalance: number;
+  createdAt?: Timestamp;
   updatedAt: Timestamp;
 }
 
@@ -83,7 +84,15 @@ export interface Withdrawal {
 }
 
 // Game types
-export type GameType = 'COLOR_PREDICTION' | 'CARD_GAME' | 'DICE_GAME';
+export type GameType =
+  | 'COLOR_PREDICTION'
+  | 'CARD_GAME'
+  | 'DICE_GAME'
+  | 'POKER'
+  | 'DRAGON_TIGER'
+  | 'ANDAR_BAHAR'
+  | 'LUDO'
+  | 'NINE_CARD';
 export type GameRoomStatus = 'WAITING' | 'PLAYING' | 'FINISHED' | 'CANCELLED';
 export type MatchmakingStatus = 'WAITING' | 'MATCHED' | 'CANCELLED';
 
@@ -168,6 +177,7 @@ export interface Notification {
   message: string;
   read: boolean;
   createdAt: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 // Referral
@@ -264,13 +274,6 @@ export interface PokerTable {
   createdAt: any;
   updatedAt: any;
   lastActionAt: any;
-}
-
-// Make sure these also exist in types.ts:
-export interface Card {
-  suit: 'hearts' | 'diamonds' | 'clubs' | 'spades';
-  value: string;
-  numericValue: number;
 }
 
 export interface PokerPlayer {
