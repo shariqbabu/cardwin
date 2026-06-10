@@ -18,33 +18,24 @@ import { auth, db } from './config';
 import { generateReferralCode } from '../utils/helpers';
 
 export const signUp = async (
-  email: string,
-  password: string,
-  name: string,
-  phone: string,
-  referralCode?: string
+  email: string, password: string,
+  name: string, phone: string, referralCode?: string
 ) => {
   const credential = await createUserWithEmailAndPassword(auth, email, password);
   const user = credential.user;
-
   await updateProfile(user, { displayName: name });
 
-  const userReferralCode = generateReferralCode(user.uid);
-  let referredBy: string | undefined;
+  // ✅ Server API call — Admin SDK se likhega
+  const token = await user.getIdToken();
+  await fetch('/api/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ uid: user.uid, name, email, phone, referralCode }),
+  });
 
-  // Check referral code
-  if (referralCode) {
-    try {
-      const { collection, query, where, getDocs } = await import('firebase/firestore');
-      const q = query(collection(db, 'users'), where('referralCode', '==', referralCode));
-      const snap = await getDocs(q);
-      if (!snap.empty && snap.docs[0].id !== user.uid) {
-        referredBy = snap.docs[0].id;
-      }
-    } catch (_e) {
-      // ignore referral errors
-    }
-  }
+  return user;
+};
 
   // Use transaction to create user + wallet atomically
   await runTransaction(db, async (tx) => {
@@ -114,32 +105,32 @@ export const signUp = async (
   return user;
 };
 
-export const signIn = async (email: string, password: string) => {
+  export const signIn = async (email: string, password: string) => {
   const credential = await signInWithEmailAndPassword(auth, email, password);
-  // Update online status
-  try {
-    await setDoc(
-      doc(db, 'users', credential.user.uid),
-      { isOnline: true, updatedAt: serverTimestamp() },
-      { merge: true }
-    );
-  } catch (_e) {
-    // ignore
-  }
+  const token = await credential.user.getIdToken();
+
+  // ✅ Online status server se update
+  fetch('/api/auth/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ isOnline: true }),
+  }).catch(() => {});
+
   return credential.user;
 };
 
 export const logOut = async () => {
   if (auth.currentUser) {
     try {
-      await setDoc(
-        doc(db, 'users', auth.currentUser.uid),
-        { isOnline: false, updatedAt: serverTimestamp() },
-        { merge: true }
-      );
-    } catch (_e) {
-      // ignore
-    }
+      const token = await auth.currentUser.getIdToken();
+      await fetch('/api/auth/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ isOnline: false }),
+      });
+    } catch (_e) {}
   }
   await signOut(auth);
 };
