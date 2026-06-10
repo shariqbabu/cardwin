@@ -5,7 +5,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ArrowUpCircle, AlertTriangle, Loader2, CheckCircle, Info } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { withdrawFunds } from '../firebase/wallet';
 import { formatCurrency } from '../utils/helpers';
 import toast from 'react-hot-toast';
 
@@ -19,7 +18,7 @@ type FormData = z.infer<typeof schema>;
 const quickAmounts = [100, 200, 500, 1000, 2000, 5000];
 
 export const Withdrawal: React.FC = () => {
-  const { firebaseUser, wallet } = useAuth();
+  const { firebaseUser, wallet, refreshProfile, loading: authLoading, } = useAuth();
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
