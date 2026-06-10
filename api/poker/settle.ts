@@ -13,8 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const uid = await verifyToken(req.headers.authorization);
     const { tableId } = req.body;
 
-    // ✅ Client se sirf tableId aayega
-    // Winners Firestore se padhenge — client pe trust nahi
+    // Only tableId from client — winners are read from Firestore, never trusted from client
     if (!tableId) {
       return res.status(400).json({ error: 'tableId required' });
     }
@@ -22,103 +21,83 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const result = await adminDb.runTransaction(async (tx) => {
       const tableRef  = adminDb.collection('pokerTables').doc(tableId);
       const tableSnap = await tx.get(tableRef);
-
       if (!tableSnap.exists) throw new Error('Table not found');
 
       const table = tableSnap.data()!;
 
-      // ✅ Winners Firestore se padho — client se nahi
-      const pending = (table.pendingSettlement || []) as Array<{
-        uid: string;
-        amount: number;
+      // ── Read winners from Firestore — never from client ───────────────────
+      const pending = (table.pendingSettlement ?? []) as Array<{
+        uid:       string;
+        amount:    number;
         handRank?: string;
       }>;
 
-      if (pending.length === 0) {
-        throw new Error('No pending settlement');
-      }
+      if (pending.length === 0) throw new Error('No pending settlement');
 
-      // ✅ Caller table mein hona chahiye
-      const isPlayer = (table.players || []).some(
-        (p: any) => p.uid === uid
-      );
+      // ── Caller must be a player at this table ─────────────────────────────
+      const isPlayer = (table.players ?? []).some((p: any) => p.uid === uid);
       if (!isPlayer) throw new Error('Not a player at this table');
 
-      // ✅ Duplicate call guard
-      if (table.settlementProcessed === true) {
-        throw new Error('Already settled');
-      }
+      // ── Idempotency guard (checked on the snapshot read, before any write) ─
+      if (table.settlementProcessed === true) throw new Error('Already settled');
 
-      const tableName = table.name || 'Poker';
+      const tableName = table.name ?? 'Poker';
 
-      // Pehle flag set karo — race condition se bacho
-      tx.update(tableRef, {
-        settlementProcessed: true,
-      });
-
-      // Har winner ko credit karo
+      // ── Credit each winner ────────────────────────────────────────────────
       for (const winner of pending) {
         if (!winner.uid || winner.amount <= 0) continue;
 
         const walletRef = adminDb.collection('wallets').doc(winner.uid);
         tx.update(walletRef, {
           winningBalance: FieldValue.increment(winner.amount),
-          updatedAt: FieldValue.serverTimestamp(),
+          updatedAt:      FieldValue.serverTimestamp(),
         });
 
-        // Transaction log
         const txRef = adminDb.collection('transactions').doc();
         tx.set(txRef, {
-          uid: winner.uid,
-          type: 'GAME_WIN',
-          amount: winner.amount,
+          uid:             winner.uid,
+          type:            'GAME_WIN',
+          amount:          winner.amount,
           previousBalance: 0,
-          currentBalance: winner.amount,
-          status: 'COMPLETED',
-          description: `Poker win${winner.handRank
-            ? ` (${winner.handRank})`
-            : ''} - "${tableName}"`,
+          currentBalance:  winner.amount,
+          status:          'COMPLETED',
+          description:     `Poker win${winner.handRank ? ` (${winner.handRank})` : ''} - "${tableName}"`,
           tableId,
-          createdAt: FieldValue.serverTimestamp(),
+          createdAt:       FieldValue.serverTimestamp(),
         });
 
-        // Notification
         const notifRef = adminDb.collection('notifications').doc();
         tx.set(notifRef, {
-          uid: winner.uid,
-          type: 'GAME_WIN',
-          title: '🃏 Poker Win!',
-          message: `You won ₹${winner.amount}!`,
-          read: false,
+          uid:       winner.uid,
+          type:      'GAME_WIN',
+          title:     '🃏 Poker Win!',
+          message:   `You won ₹${winner.amount}!`,
+          read:      false,
           createdAt: FieldValue.serverTimestamp(),
         });
       }
 
-      // pendingSettlement clear karo
+      // ── Clear settlement state ─────────────────────────────────────────────
       tx.update(tableRef, {
-        pendingSettlement: [],
-        settlementProcessed: false, // next hand ke liye reset
-        updatedAt: FieldValue.serverTimestamp(),
+        pendingSettlement:   [],
+        settlementProcessed: false, // reset for next hand
+        updatedAt:           FieldValue.serverTimestamp(),
       });
 
       return {
-        settled: pending.map(w => ({
-          uid: w.uid,
-          amount: w.amount,
-        })),
+        settled: pending.map(w => ({ uid: w.uid, amount: w.amount })),
       };
     });
 
     return res.status(200).json({ success: true, ...result });
-
   } catch (error: any) {
     console.error('Poker settle error:', error);
 
-    // No pending settlement — not an error for client
-    if (error.message === 'No pending settlement') {
-      return res.status(200).json({ success: true, settled: [] });
-    }
-    if (error.message === 'Already settled') {
+    // These are non-error states for the client
+    if (
+      error.message === 'No pending settlement' ||
+      error.message === 'Already settled'
+    ) {
       return res.status(200).json({ success: true, settled: [] });
     }
 
