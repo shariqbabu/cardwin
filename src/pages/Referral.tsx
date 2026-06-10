@@ -13,10 +13,16 @@ export const Referral: React.FC = () => {
   const [referrals, setReferrals] = useState<ReferralType[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const referralLink = `${window.location.origin}/signup?ref=${user?.referralCode}`;
+  const referralLink = user?.referralCode
+  ? `${window.location.origin}/signup?ref=${user.referralCode}`
+  : '';
 
   useEffect(() => {
-    if (!user?.uid) return;
+   if (!user?.uid) {
+  setReferrals([]);
+  setLoading(false);
+  return;
+}
     const fetchReferrals = async () => {
       try {
         const q = query(
@@ -63,7 +69,7 @@ export const Referral: React.FC = () => {
           <div className="mt-4 grid grid-cols-3 gap-3">
             {[
               { label: 'Your Referrals', value: referrals.length },
-              { label: 'Earned', value: formatCurrency(wallet?.referralBalance || 0) },
+              { label: 'Earned', value: formatCurrency(wallet?.referralBalance ?? 0) },
               { label: 'Per Referral', value: '₹50' },
             ].map(({ label, value }) => (
               <div key={label} className="bg-white/5 rounded-xl p-3">
